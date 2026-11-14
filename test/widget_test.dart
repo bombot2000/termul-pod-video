@@ -43,7 +43,7 @@ void main() {
     expect(find.text('FOTO + VIDEO'), findsOneWidget);
     expect(find.text('AKTIF OFFLINE'), findsOneWidget);
     expect(
-      find.textContaining('watermark waktu dan lokasi tertanam pada foto serta video'),
+      find.textContaining('Watermark waktu dan lokasi tertanam pada foto serta video'),
       findsOneWidget,
     );
     expect(find.textContaining('tersimpan di perangkat'), findsOneWidget);
