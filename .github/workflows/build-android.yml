@@ -2,9 +2,12 @@ name: Build Android APK
 
 on:
   push:
-    branches: [main, feature/**]
+    branches:
+      - main
+      - "feature/**"
   pull_request:
-    branches: [main]
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       release_tag:
@@ -45,12 +48,16 @@ jobs:
             flutter create --platforms=android --org com.termul --project-name termul_pod_video .
           fi
 
-      - name: Disable release signing
+      - name: Configure unsigned release build
+        shell: bash
         run: |
+          set -euo pipefail
           if [ -f android/app/build.gradle.kts ]; then
-            sed -i 's/signingConfig = signingConfigs.getByName("debug")/signingConfig = null/' android/app/build.gradle.kts
+            sed -i '/signingConfig[[:space:]]*=[[:space:]]*signingConfigs\.getByName("debug")/d' android/app/build.gradle.kts
+            sed -i '/signingConfig[[:space:]]*=[[:space:]]*signingConfigs\.getByName("release")/d' android/app/build.gradle.kts
           elif [ -f android/app/build.gradle ]; then
-            sed -i 's/signingConfig signingConfigs.debug/signingConfig null/' android/app/build.gradle
+            sed -i '/signingConfig[[:space:]]\+signingConfigs\.debug/d' android/app/build.gradle
+            sed -i '/signingConfig[[:space:]]\+signingConfigs\.release/d' android/app/build.gradle
           fi
 
       - name: Resolve dependencies
@@ -62,7 +69,7 @@ jobs:
       - name: Test
         run: flutter test --no-pub
 
-      - name: Build unsigned release APK
+      - name: Build APK
         run: flutter build apk --release --no-pub
 
       - name: Publish GitHub Release (optional)
@@ -70,11 +77,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag }}
+        shell: bash
         run: |
           gh release create "$RELEASE_TAG" build/app/outputs/flutter-apk/app-release.apk \
             --repo "$GITHUB_REPOSITORY" \
             --title "Termul POD Video $RELEASE_TAG" \
-            --notes "Automated unsigned Android APK build."
+            --notes "Automated Android APK build."
 
       - name: Report APK location
         run: echo "APK: build/app/outputs/flutter-apk/app-release.apk"
