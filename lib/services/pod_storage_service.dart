@@ -44,6 +44,7 @@ class PodStorageService {
     double? latitude,
     double? longitude,
     double? accuracy,
+    bool? watermarkApplied,
   }) async {
     final source = File(sourcePath);
     if (!await source.exists()) {
@@ -79,6 +80,7 @@ class PodStorageService {
       latitude: latitude,
       longitude: longitude,
       accuracy: accuracy,
+      watermarkApplied: watermarkApplied,
     );
 
     try {
