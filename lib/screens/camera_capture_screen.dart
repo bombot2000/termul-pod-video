@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:camera/camera.dart';
 import 'package:material_ui/material_ui.dart';
@@ -193,18 +194,22 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
         }
       }
 
-      final record = await PodStorageService().saveMedia(
-        sourcePath: sourcePath,
-        type: type,
-        createdAt: capturedAt,
-        latitude: position?.latitude,
-        longitude: position?.longitude,
-        accuracy: position?.accuracy,
-      );
-      if (watermarkedPath != null) {
-        final temporaryWatermark = File(watermarkedPath);
-        if (await temporaryWatermark.exists()) {
-          await temporaryWatermark.delete();
+      final PodMediaRecord record;
+      try {
+        record = await PodStorageService().saveMedia(
+          sourcePath: sourcePath,
+          type: type,
+          createdAt: capturedAt,
+          latitude: position?.latitude,
+          longitude: position?.longitude,
+          accuracy: position?.accuracy,
+        );
+      } finally {
+        if (watermarkedPath != null) {
+          final temporaryWatermark = File(watermarkedPath);
+          if (await temporaryWatermark.exists()) {
+            await temporaryWatermark.delete();
+          }
         }
       }
       if (!mounted) { return; }
