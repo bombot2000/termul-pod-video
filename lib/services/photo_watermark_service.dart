@@ -11,6 +11,7 @@ class PhotoWatermarkService {
     double? latitude,
     double? longitude,
     double? accuracy,
+    String? address,
   }) async {
     final source = File(sourcePath);
     if (!await source.exists()) {
@@ -33,6 +34,7 @@ class PhotoWatermarkService {
         timestamp: timestamp,
         gpsLine: gpsLine,
         accuracyLine: accuracyLine,
+        address: address,
       ),
     );
     return outputPath;
@@ -45,6 +47,7 @@ void _renderWatermark({
   required String timestamp,
   required String gpsLine,
   required String accuracyLine,
+  required String? address,
 }) {
   final sourceFile = File(sourcePath);
   final bytes = sourceFile.readAsBytesSync();
@@ -66,6 +69,13 @@ void _renderWatermark({
     gpsLine,
     accuracyLine,
   ];
+  if (address != null && address.trim().isNotEmpty) {
+    final maxChars =
+        ((photo.width - padding * 4) / (font.lineHeight * 0.55))
+            .floor()
+            .clamp(18, 100);
+    lines.addAll(_wrapAddress('Alamat  ${address.trim()}', maxChars));
+  }
   final lineGap = (font.lineHeight * 0.35).round();
   final lineHeight = font.lineHeight + lineGap;
   final panelHeight = padding * 2 + lineHeight * lines.length;
@@ -100,4 +110,35 @@ void _renderWatermark({
 
   final output = File(outputPath);
   output.writeAsBytesSync(img.encodeJpg(photo, quality: 92), flush: true);
+}
+
+List<String> _wrapAddress(String value, int maxChars) {
+  final words = value.split(RegExp(r'\\s+'));
+  final lines = <String>[];
+  var current = '';
+  var truncated = false;
+
+  for (final word in words) {
+    final candidate = current.isEmpty ? word : '$current $word';
+    if (candidate.length > maxChars && current.isNotEmpty) {
+      lines.add(current);
+      current = word;
+      if (lines.length == 2) {
+        truncated = true;
+        break;
+      }
+    } else {
+      current = candidate;
+    }
+  }
+
+  if (current.isNotEmpty && lines.length < 2) {
+    lines.add(current);
+  } else if (current.isNotEmpty) {
+    truncated = true;
+  }
+  if (truncated && lines.isNotEmpty) {
+    lines[lines.length - 1] = '${lines.last}…';
+  }
+  return lines;
 }
