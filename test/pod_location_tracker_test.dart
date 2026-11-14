@@ -4,13 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:termul_pod_video/services/pod_location_tracker.dart';
 
 class _FakeBackend implements PodLocationBackend {
-  _FakeBackend({
-    this.availability = PodLocationAvailability.ready,
-    this.lastKnownSample,
-    this.availabilityGate,
-  });
-
-  PodLocationAvailability availability;
+  PodLocationAvailability availability = PodLocationAvailability.ready;
   PodLocationSample? lastKnownSample;
   Completer<void>? availabilityGate;
   int positionsCalls = 0;
