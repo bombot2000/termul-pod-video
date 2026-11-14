@@ -263,7 +263,7 @@ class _CaptureDashboard extends StatelessWidget {
         const _InfoRow(
             icon: Icons.layers_outlined,
             title: 'Watermark',
-            detail: 'Tahap berikutnya: watermark pada file foto/video'),
+            detail: 'Watermark waktu dan GPS tertanam pada file foto; video menyusul'),
         const _InfoRow(
             icon: Icons.offline_pin_outlined,
             title: 'Penyimpanan lokal',
@@ -488,7 +488,7 @@ class _SettingsPlaceholder extends StatelessWidget {
                   leading: Icon(Icons.text_fields),
                   title: Text('Template watermark'),
                   subtitle: Text(
-                      'Pengaturan desain watermark akan tersedia pada tahap berikutnya.'))),
+                      'Watermark foto aktif: waktu, koordinat GPS, dan akurasi. Watermark video menyusul.'))),
           Card(
               child: ListTile(
                   leading: Icon(Icons.gps_fixed),
