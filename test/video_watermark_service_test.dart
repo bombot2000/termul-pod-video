@@ -16,7 +16,7 @@ void main() {
     expect(decoded, isNotNull);
     expect(decoded!.width, 1600);
     expect(decoded.height, 260);
-    final panelPixel = decoded.getPixel(800, 130);
+    final panelPixel = decoded.getPixel(1500, 130);
     expect(panelPixel.a, greaterThan(200));
     expect(panelPixel.r, lessThan(40));
     expect(panelPixel.g, lessThan(50));
