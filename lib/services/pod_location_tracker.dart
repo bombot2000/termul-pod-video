@@ -242,7 +242,7 @@ class PodLocationTracker {
 
     final platformAccuracy = raw.accuracy.isFinite && raw.accuracy > 0
         ? raw.accuracy
-        : podPoorAccuracyMeters;
+        : podPoorAccuracyMeters + 1;
     final estimate = _engine.add(
       latitude: raw.latitude,
       longitude: raw.longitude,
