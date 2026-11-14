@@ -35,6 +35,7 @@ void main() {
       latitude: -7.9826,
       longitude: 112.6308,
       accuracy: 8.5,
+      watermarkApplied: true,
     );
 
     final restored = PodMediaRecord.fromJson(original.toJson());
@@ -45,6 +46,7 @@ void main() {
     expect(restored.latitude, -7.9826);
     expect(restored.longitude, 112.6308);
     expect(restored.accuracy, 8.5);
+    expect(restored.watermarkApplied, isTrue);
   });
 
   test('POD media record supports capture without GPS permission', () {
@@ -59,6 +61,31 @@ void main() {
     expect(restored.latitude, isNull);
     expect(restored.longitude, isNull);
     expect(restored.accuracy, isNull);
+    expect(restored.watermarkApplied, isNull);
+  });
+
+  test('legacy history entries remain readable without watermark status', () {
+    final restored = PodMediaRecord.fromJson({
+      'path': '/private/pod_media/legacy.jpg',
+      'type': 'photo',
+      'createdAt': '2026-11-14T09:30:00.000',
+    });
+
+    expect(restored.watermarkApplied, isNull);
+    expect(restored.path, '/private/pod_media/legacy.jpg');
+  });
+
+  test('storage persists watermark status with media metadata', () async {
+    final saved = await storage.saveMedia(
+      sourcePath: sourceFile.path,
+      type: 'photo',
+      createdAt: DateTime.parse('2026-11-14T09:30:00.000'),
+      watermarkApplied: true,
+    );
+
+    final restored = (await storage.getRecords()).single;
+    expect(saved.watermarkApplied, isTrue);
+    expect(restored.watermarkApplied, isTrue);
   });
 
   test('same timestamp captures receive unique file names and both persist', () async {
