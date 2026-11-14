@@ -35,6 +35,7 @@ void main() {
       latitude: -7.9826,
       longitude: 112.6308,
       accuracy: 8.5,
+      address: 'Jl. Merdeka, Malang, Jawa Timur',
       watermarkApplied: true,
     );
 
@@ -46,6 +47,7 @@ void main() {
     expect(restored.latitude, -7.9826);
     expect(restored.longitude, 112.6308);
     expect(restored.accuracy, 8.5);
+    expect(restored.address, 'Jl. Merdeka, Malang, Jawa Timur');
     expect(restored.watermarkApplied, isTrue);
   });
 
@@ -61,6 +63,7 @@ void main() {
     expect(restored.latitude, isNull);
     expect(restored.longitude, isNull);
     expect(restored.accuracy, isNull);
+    expect(restored.address, isNull);
     expect(restored.watermarkApplied, isNull);
   });
 
@@ -71,6 +74,7 @@ void main() {
       'createdAt': '2026-11-14T09:30:00.000',
     });
 
+    expect(restored.address, isNull);
     expect(restored.watermarkApplied, isNull);
     expect(restored.path, '/private/pod_media/legacy.jpg');
   });
@@ -80,11 +84,13 @@ void main() {
       sourcePath: sourceFile.path,
       type: 'photo',
       createdAt: DateTime.parse('2026-11-14T09:30:00.000'),
+      address: 'Jl. Merdeka, Malang',
       watermarkApplied: true,
     );
 
     final restored = (await storage.getRecords()).single;
-    expect(saved.watermarkApplied, isTrue);
+    expect(saved.address, 'Jl. Merdeka, Malang');
+    expect(restored.address, 'Jl. Merdeka, Malang');
     expect(restored.watermarkApplied, isTrue);
   });
 
