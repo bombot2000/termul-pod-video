@@ -37,6 +37,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
   Future<PodLocationFix?>? _recordingFix;
   Future<String?>? _recordingAddress;
   bool _appPaused = false;
+  int _cameraInitGeneration = 0;
 
   @override
   void initState() {
@@ -47,6 +48,8 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
   }
 
   Future<void> _initializeCamera() async {
+    if (_appPaused) return;
+    final generation = ++_cameraInitGeneration;
     if (mounted) {
       setState(() {
         _initializing = true;
@@ -55,6 +58,9 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
     }
     try {
       final cameras = await availableCameras();
+      if (!mounted || _appPaused || generation != _cameraInitGeneration) {
+        return;
+      }
       if (cameras.isEmpty) {
         throw CameraException('no_camera', 'Kamera tidak ditemukan.');
       }
@@ -68,7 +74,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
         enableAudio: true,
       );
       await controller.initialize();
-      if (!mounted) {
+      if (!mounted || _appPaused || generation != _cameraInitGeneration) {
         await controller.dispose();
         return;
       }
@@ -80,14 +86,14 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
       // permission dialogs never stack, and GPS is warm before the shutter.
       unawaited(_locationTracker.start());
     } on CameraException catch (exception) {
-      if (mounted) {
+      if (mounted && !_appPaused && generation == _cameraInitGeneration) {
         setState(() {
           _error = _cameraErrorMessage(exception);
           _initializing = false;
         });
       }
     } catch (exception) {
-      if (mounted) {
+      if (mounted && !_appPaused && generation == _cameraInitGeneration) {
         setState(() {
           _error = 'Kamera tidak dapat dibuka: $exception';
           _initializing = false;
@@ -117,6 +123,10 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
     // shade. Keep the camera alive until the app is actually backgrounded.
     if (state == AppLifecycleState.paused) {
       _appPaused = true;
+      // Invalidate any camera initialization still waiting on the plugin.
+      // Its eventual result must be disposed rather than attached in background.
+      _cameraInitGeneration++;
+      _initializing = false;
       unawaited(_locationTracker.stop());
       final controller = _controller;
       if (_recording && !_saving && controller != null &&
