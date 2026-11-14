@@ -301,7 +301,15 @@ class PodLocationTracker {
     final lastKnown = await _backend.lastKnown();
     if (lastKnown == null) return null;
     final fix = _fixFor(lastKnown);
-    return fix.age > maxLastKnownAge || fix.age < -maxFutureSkew
+    final validCoordinates = lastKnown.latitude.isFinite &&
+        lastKnown.longitude.isFinite &&
+        lastKnown.latitude >= -90 &&
+        lastKnown.latitude <= 90 &&
+        lastKnown.longitude >= -180 &&
+        lastKnown.longitude <= 180;
+    return !validCoordinates ||
+            fix.age > maxLastKnownAge ||
+            fix.age < -maxFutureSkew
         ? null
         : fix;
   }
