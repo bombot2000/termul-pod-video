@@ -431,6 +431,13 @@ class _HistoryPageState extends State<_HistoryPage> {
             final location = record.latitude == null
                 ? 'Lokasi GPS tidak tersedia'
                 : '${record.latitude!.toStringAsFixed(6)}, ${record.longitude!.toStringAsFixed(6)}';
+            final watermarkStatus = isVideo
+                ? 'Watermark video belum tersedia'
+                : record.watermarkApplied == true
+                    ? 'Watermark waktu dan GPS tertanam'
+                    : record.watermarkApplied == false
+                        ? 'Watermark gagal diterapkan'
+                        : 'Status watermark tidak tercatat';
             return Card(
               child: ListTile(
                 contentPadding:
