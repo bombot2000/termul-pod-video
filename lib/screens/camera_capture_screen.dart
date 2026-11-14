@@ -110,14 +110,30 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    final controller = _controller;
-    if (controller == null || !controller.value.isInitialized) { return; }
     if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused) {
-      unawaited(controller.dispose());
+      final controller = _controller;
+      if (_recording && !_saving && controller != null &&
+          controller.value.isRecordingVideo) {
+        // Finalize an active clip before releasing the camera. This prevents
+        // Android lifecycle changes from silently discarding the recording.
+        unawaited(_capture());
+        return;
+      }
       _controller = null;
-    } else if (state == AppLifecycleState.resumed) {
-      _initializeCamera();
+      if (controller != null) {
+        unawaited(controller.dispose());
+      }
+      return;
+    }
+
+    if (state == AppLifecycleState.resumed &&
+        _controller == null &&
+        !_initializing &&
+        !_saving) {
+      // Do not return early when _controller is null: that is the expected
+      // state after releasing the camera while the app was in the background.
+      unawaited(_initializeCamera());
     }
   }
 
