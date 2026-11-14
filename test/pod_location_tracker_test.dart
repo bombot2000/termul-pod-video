@@ -216,4 +216,108 @@ void main() {
     await tracker.start();
     expect(backend.controller.hasListener, isTrue);
   });
+
+  group('device clock that disagrees with GPS time', () {
+    late DateTime current;
+    late PodLocationTracker skewed;
+
+    setUp(() {
+      current = now;
+      skewed = PodLocationTracker(backend: backend, clock: () => current);
+    });
+
+    tearDown(() => skewed.dispose());
+
+    PodLocationSample gpsSample(Duration gpsAhead) {
+      return PodLocationSample(
+        latitude: -7.9826,
+        longitude: 112.6308,
+        accuracy: 8,
+        timestamp: current.add(gpsAhead),
+      );
+    }
+
+    Future<void> push(PodLocationSample value) async {
+      backend.controller.add(value);
+      await pumpEventQueue();
+    }
+
+    test('a phone clock that is a minute behind still gets coordinates',
+        () async {
+      await skewed.start();
+      const ahead = Duration(seconds: 60);
+
+      await push(gpsSample(ahead));
+      expect(skewed.latest, isNull);
+
+      current = current.add(const Duration(seconds: 1));
+      await push(gpsSample(ahead));
+      final fix = skewed.latest!;
+      expect(fix.ageSeconds, 0);
+      expect(fix.clockOffsetSeconds, -60);
+
+      current = current.add(const Duration(seconds: 1));
+      await push(gpsSample(ahead));
+      expect(skewed.latest!.sampleCount, 2);
+    });
+
+    test('a phone clock that is minutes ahead is corrected too', () async {
+      await skewed.start();
+      const behind = Duration(minutes: -5);
+
+      await push(gpsSample(behind));
+      current = current.add(const Duration(seconds: 1));
+      await push(gpsSample(behind));
+
+      expect(skewed.latest, isNotNull);
+      expect(skewed.latest!.clockOffsetSeconds, 300);
+    });
+
+    test('a burst of old cached fixes is not mistaken for clock skew',
+        () async {
+      await skewed.start();
+      await push(gpsSample(const Duration(minutes: -3)));
+      await push(gpsSample(const Duration(seconds: -179)));
+      await push(gpsSample(const Duration(seconds: -178)));
+      expect(skewed.latest, isNull);
+    });
+
+    test('a corrected clock goes back to normal ageing', () async {
+      await skewed.start();
+      const ahead = Duration(seconds: 60);
+      await push(gpsSample(ahead));
+      current = current.add(const Duration(seconds: 1));
+      await push(gpsSample(ahead));
+      expect(skewed.latest!.clockOffsetSeconds, -60);
+
+      // The phone syncs its clock: it jumps forward to GPS time, which has
+      // itself kept running, so GPS timestamps stay in order.
+      current = current.add(const Duration(seconds: 61));
+      await push(gpsSample(Duration.zero));
+      expect(skewed.latest!.clockOffsetSeconds, 0);
+    });
+
+    test('moving samples are passed through unsmoothed', () async {
+      await skewed.start();
+      await push(PodLocationSample(
+        latitude: -7.9826,
+        longitude: 112.6308,
+        accuracy: 8,
+        timestamp: current,
+        speed: 0.1,
+      ));
+      current = current.add(const Duration(seconds: 1));
+      await push(PodLocationSample(
+        latitude: -7.98251,
+        longitude: 112.6308,
+        accuracy: 8,
+        timestamp: current,
+        speed: 12,
+      ));
+
+      final fix = skewed.latest!;
+      expect(fix.latitude, -7.98251);
+      expect(fix.sampleCount, 1);
+    });
+  });
 }
