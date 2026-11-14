@@ -30,7 +30,7 @@ jobs:
       - name: Generate Android project
         run: |
           if [ ! -d android ]; then
-            flutter create --platforms=android --org com.termul --project-name termul_pod_video .
+            flutter create --no-pub --platforms=android --org com.termul --project-name termul_pod_video .
           fi
 
       - name: Configure Android permissions and minSdk
