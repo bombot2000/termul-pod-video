@@ -9,7 +9,9 @@ import '../models/pod_media_record.dart';
 import '../services/pod_storage_service.dart';
 
 class CameraCaptureScreen extends StatefulWidget {
-  const CameraCaptureScreen({super.key});
+  const CameraCaptureScreen({super.key, this.initialVideoMode = false});
+
+  final bool initialVideoMode;
 
   @override
   State<CameraCaptureScreen> createState() => _CameraCaptureScreenState();
@@ -22,6 +24,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
   bool _recording = false;
   bool _saving = false;
   bool _videoMode = false;
+  DateTime? _recordingStartedAt;
   String? _error;
   DateTime _clock = DateTime.now();
   Timer? _clockTimer;
@@ -30,6 +33,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _videoMode = widget.initialVideoMode;
     _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) { setState(() => _clock = DateTime.now()); }
     });
@@ -144,6 +148,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
     if (_videoMode && !_recording) {
       try {
         await controller.startVideoRecording();
+        _recordingStartedAt = DateTime.now();
         if (mounted) { setState(() => _recording = true); }
       } on CameraException catch (exception) {
         _showMessage(_cameraErrorMessage(exception));
@@ -153,12 +158,15 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
 
     setState(() => _saving = true);
     try {
-      final capturedAt = DateTime.now();
       final type = _videoMode ? 'video' : 'photo';
+      final capturedAt = type == 'video'
+          ? (_recordingStartedAt ?? DateTime.now())
+          : DateTime.now();
       final XFile media;
       if (_videoMode) {
         if (!controller.value.isRecordingVideo) { return; }
         media = await controller.stopVideoRecording();
+        _recordingStartedAt = null;
         if (mounted) { setState(() => _recording = false); }
       } else {
         media = await controller.takePicture();
