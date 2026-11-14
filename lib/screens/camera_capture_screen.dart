@@ -36,6 +36,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
   final CachedAddressResolver _addressResolver = CachedAddressResolver();
   Future<PodLocationFix?>? _recordingFix;
   Future<String?>? _recordingAddress;
+  bool _appPaused = false;
 
   @override
   void initState() {
@@ -112,31 +113,45 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // `inactive` also fires for permission dialogs and the notification
-    // shade, so only a real move to the background releases the camera.
+    // Android may emit inactive for permission dialogs and the notification
+    // shade. Keep the camera alive until the app is actually backgrounded.
     if (state == AppLifecycleState.paused) {
+      _appPaused = true;
       unawaited(_locationTracker.stop());
       final controller = _controller;
       if (_recording && !_saving && controller != null &&
           controller.value.isRecordingVideo) {
-        // Finalize an active clip before releasing the camera. This prevents
-        // Android lifecycle changes from silently discarding the recording.
-        unawaited(_capture());
+        // Stop and persist the active clip before releasing the camera.
+        // The helper also handles returning to the foreground mid-save.
+        unawaited(_finishRecordingAndReleaseCamera(controller));
         return;
       }
       _controller = null;
-      if (controller != null) {
-        unawaited(controller.dispose());
-      }
+      if (controller != null) unawaited(controller.dispose());
       return;
     }
 
-    if (state == AppLifecycleState.resumed &&
-        _controller == null &&
-        !_initializing &&
-        !_saving) {
-      // Do not return early when _controller is null: that is the expected
-      // state after releasing the camera while the app was in the background.
+    if (state == AppLifecycleState.resumed) {
+      _appPaused = false;
+      if (_controller == null && !_initializing && !_saving) {
+        unawaited(_initializeCamera());
+      }
+    }
+  }
+
+  Future<void> _finishRecordingAndReleaseCamera(
+    CameraController controller,
+  ) async {
+    await _capture();
+    if (!identical(_controller, controller)) return;
+
+    _controller = null;
+    await controller.dispose();
+
+    // The app may have resumed while the clip was being finalized. In that
+    // case, reopen the camera now instead of leaving the preview permanently
+    // blank after the delayed dispose.
+    if (mounted && !_appPaused && !_saving) {
       unawaited(_initializeCamera());
     }
   }
@@ -309,7 +324,9 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _locationTracker.dispose();
-    _controller?.dispose();
+    final controller = _controller;
+    _controller = null;
+    if (controller != null) unawaited(controller.dispose());
     super.dispose();
   }
 
