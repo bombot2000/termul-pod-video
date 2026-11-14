@@ -22,7 +22,12 @@ PERMISSIONS = (
 )
 LEGACY_STORAGE_PERMISSION = (
     '    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" '
-    'android:maxSdkVersion="29" />'
+    'android:maxSdkVersion="29" tools:replace="android:maxSdkVersion" />'
+)
+TOOLS_NAMESPACE = 'xmlns:tools="http://schemas.android.com/tools"'
+LEGACY_STORAGE_PATTERN = (
+    r'<uses-permission\\b(?=[^>]*android:name=["\\']'
+    r'android\\.permission\\.WRITE_EXTERNAL_STORAGE["\\'])[^>]*/>'
 )
 FEATURES = (
     ('android.hardware.camera', '    <uses-feature android:name="android.hardware.camera" android:required="false" />'),
@@ -44,8 +49,27 @@ def configure_manifest() -> None:
         element for name, element in FEATURES
         if f'android:name="{name}"' not in source
     )
-    if 'android.permission.WRITE_EXTERNAL_STORAGE' not in source:
+    # The camera plugin also declares this legacy permission with maxSdkVersion=28.
+    # Explicitly resolve the manifest merger conflict and make the script idempotent.
+    source = re.sub(
+        LEGACY_STORAGE_PATTERN,
+        LEGACY_STORAGE_PERMISSION.strip(),
+        source,
+        count=1,
+    )
+    if not re.search(LEGACY_STORAGE_PATTERN, source):
         additions.append(LEGACY_STORAGE_PERMISSION)
+
+    if LEGACY_STORAGE_PERMISSION.strip() in source and TOOLS_NAMESPACE not in source:
+        source, count = re.subn(
+            r"(<manifest\\b[^>]*)(>)",
+            lambda match: f"{match.group(1)} {TOOLS_NAMESPACE}{match.group(2)}",
+            source,
+            count=1,
+        )
+        if count != 1:
+            sys.exit("Could not add tools namespace to AndroidManifest.xml")
+
 
     if not additions:
         print("Manifest permissions/features already configured")
