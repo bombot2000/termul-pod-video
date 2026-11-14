@@ -38,7 +38,7 @@ void main() {
 
     await tester.drag(find.byType(ListView).first, const Offset(0, -900));
     await tester.pumpAndSettle();
-    expect(find.textContaining('Tahap berikutnya'), findsOneWidget);
+    expect(find.textContaining('Watermark waktu dan GPS tertanam'), findsOneWidget);
     expect(find.textContaining('tersimpan di perangkat'), findsOneWidget);
   });
 }
