@@ -466,7 +466,7 @@ class _HistoryPageState extends State<_HistoryPage> {
                 title: Text(isVideo ? 'Video POD' : 'Foto POD',
                     style: const TextStyle(fontWeight: FontWeight.w700)),
                 subtitle: Text(
-                  '${DateFormat('dd MMM yyyy • HH:mm').format(record.createdAt)}\n$location',
+                  '${DateFormat('dd MMM yyyy • HH:mm').format(record.createdAt)}\n$location\n$watermarkStatus',
                 ),
                 isThreeLine: true,
                 trailing: IconButton(
