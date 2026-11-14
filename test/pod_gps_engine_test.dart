@@ -75,6 +75,17 @@ void main() {
     expect(estimate.locked, isFalse);
   });
 
+  test('long GPS gaps reset the old smoothing window', () {
+    final engine = PodGpsEngine();
+    for (var i = 0; i < 4; i++) {
+      feed(engine, i);
+    }
+    final estimate = feed(engine, 30, dLat: 0.00005);
+    expect(estimate.sampleCount, 1);
+    expect(estimate.latitude, lat + 0.00005);
+    expect(estimate.locked, isFalse);
+  });
+
   test('reset forgets earlier readings', () {
     final engine = PodGpsEngine();
     for (var i = 0; i < 4; i++) {
