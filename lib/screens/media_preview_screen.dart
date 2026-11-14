@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:intl/intl.dart';
 import 'package:video_player/video_player.dart';
 
@@ -196,3 +196,4 @@ class _PreviewError extends StatelessWidget {
           style: const TextStyle(color: Colors.white70),
         ),
       );
+}
