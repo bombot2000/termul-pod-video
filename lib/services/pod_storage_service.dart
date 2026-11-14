@@ -27,7 +27,7 @@ class PodStorageService {
   }) async {
     final source = File(sourcePath);
     if (!await source.exists()) {
-      throw const FileSystemException('File hasil kamera tidak ditemukan');
+      throw FileSystemException('File hasil kamera tidak ditemukan');
     }
     final directory = await mediaDirectory(video: video);
     final extension = video ? 'mp4' : 'jpg';
