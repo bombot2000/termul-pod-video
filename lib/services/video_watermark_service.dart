@@ -19,7 +19,7 @@ class VideoWatermarkService {
     double? longitude,
     double? accuracy,
     String? address,
-    ValueChanged<double>? onProgress,
+    void Function(double)? onProgress,
   }) async {
     final source = File(sourcePath);
     if (!await source.exists()) {
@@ -78,11 +78,11 @@ class VideoWatermarkOverlay {
     final recorder = ui.PictureRecorder();
     final canvas = ui.Canvas(
       recorder,
-      const ui.Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()),
+      ui.Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()),
     );
 
     final panel = ui.RRect.fromRectAndRadius(
-      const ui.Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()),
+      ui.Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()),
       const ui.Radius.circular(28),
     );
     canvas.drawRRect(
@@ -91,7 +91,7 @@ class VideoWatermarkOverlay {
     );
     canvas.drawRRect(
       ui.RRect.fromRectAndRadius(
-        const ui.Rect.fromLTWH(0, 0, 10, height.toDouble()),
+        ui.Rect.fromLTWH(0, 0, 10, height.toDouble()),
         const ui.Radius.circular(5),
       ),
       ui.Paint()..color = const ui.Color(0xFF65D6B0),
