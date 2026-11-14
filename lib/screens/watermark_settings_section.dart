@@ -39,7 +39,7 @@ class _WatermarkSettingsSectionState extends State<WatermarkSettingsSection> {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        Text('Tampilan watermark',
+        Text('Template watermark',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.w800,
                 )),
