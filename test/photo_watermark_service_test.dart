@@ -29,6 +29,7 @@ void main() {
       latitude: -7.9826,
       longitude: 112.6308,
       accuracy: 8.5,
+      address: 'Jl. Merdeka, Malang, Jawa Timur',
     );
 
     expect(outputPath, isNot(sourceFile.path));
