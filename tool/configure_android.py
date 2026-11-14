@@ -25,10 +25,7 @@ LEGACY_STORAGE_PERMISSION = (
     'android:maxSdkVersion="29" tools:replace="android:maxSdkVersion" />'
 )
 TOOLS_NAMESPACE = 'xmlns:tools="http://schemas.android.com/tools"'
-LEGACY_STORAGE_PATTERN = (
-    r'<uses-permission\\b(?=[^>]*android:name=["\\']'
-    r'android\\.permission\\.WRITE_EXTERNAL_STORAGE["\\'])[^>]*/>'
-)
+LEGACY_STORAGE_PATTERN = r"""<uses-permission\b(?=[^>]*android:name=["']android\.permission\.WRITE_EXTERNAL_STORAGE["'])[^>]*/>"""
 FEATURES = (
     ('android.hardware.camera', '    <uses-feature android:name="android.hardware.camera" android:required="false" />'),
     ('android.hardware.location.gps', '    <uses-feature android:name="android.hardware.location.gps" android:required="false" />'),
@@ -40,6 +37,7 @@ def configure_manifest() -> None:
         sys.exit(f"Android manifest not found: {MANIFEST}")
 
     source = MANIFEST.read_text(encoding="utf-8")
+    original_source = source
     additions = [
         f'    <uses-permission android:name="{permission}" />'
         for permission in PERMISSIONS
@@ -62,7 +60,7 @@ def configure_manifest() -> None:
 
     if LEGACY_STORAGE_PERMISSION.strip() in source and TOOLS_NAMESPACE not in source:
         source, count = re.subn(
-            r"(<manifest\\b[^>]*)(>)",
+            r"(<manifest\b[^>]*)(>)",
             lambda match: f"{match.group(1)} {TOOLS_NAMESPACE}{match.group(2)}",
             source,
             count=1,
@@ -71,7 +69,7 @@ def configure_manifest() -> None:
             sys.exit("Could not add tools namespace to AndroidManifest.xml")
 
 
-    if not additions:
+    if not additions and source == original_source:
         print("Manifest permissions/features already configured")
         return
 
