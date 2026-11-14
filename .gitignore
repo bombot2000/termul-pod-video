@@ -3,9 +3,10 @@
 .packages
 .pub/
 build/
+*.apk
 .flutter-plugins
 .flutter-plugins-dependencies
-.metadata
+
 .flutter-automation/
 
 # IDE
