@@ -4,6 +4,8 @@ import 'dart:isolate';
 import 'package:image/image.dart' as img;
 import 'package:intl/intl.dart';
 
+import 'pod_watermark_settings_service.dart';
+
 class PhotoWatermarkService {
   Future<String> createWatermarkedCopy({
     required String sourcePath,
@@ -27,6 +29,7 @@ class PhotoWatermarkService {
         : 'Akurasi  ${accuracy.toStringAsFixed(1)} m';
     final outputPath = '${source.path}.watermarked.jpg';
 
+    final layout = await PodWatermarkSettingsService().loadLayout();
     await Isolate.run(
       () => _renderWatermark(
         sourcePath: source.path,
@@ -35,6 +38,7 @@ class PhotoWatermarkService {
         gpsLine: gpsLine,
         accuracyLine: accuracyLine,
         address: address,
+        layout: layout.name,
       ),
     );
     return outputPath;
@@ -48,6 +52,7 @@ void _renderWatermark({
   required String gpsLine,
   required String accuracyLine,
   required String? address,
+  required String layout,
 }) {
   final sourceFile = File(sourcePath);
   final bytes = sourceFile.readAsBytesSync();
@@ -77,13 +82,33 @@ void _renderWatermark({
             .toInt();
     lines.addAll(_wrapAddress('Alamat  ${address.trim()}', maxChars));
   }
-  final lineGap = (font.lineHeight * 0.35).round();
-  final lineHeight = font.lineHeight + lineGap;
-  final panelHeight = padding * 2 + lineHeight * lines.length;
+  final compact = layout == 'compact';
+  final header = layout == 'header';
+  final compactMaxChars = ((photo.width * 0.72 - padding * 4) /
+          (img.arial14.lineHeight * 0.55))
+      .floor()
+      .clamp(12, 80)
+      .toInt();
+  final visibleLines = compact
+      ? <String>[
+          timestamp,
+          gpsLine,
+          accuracyLine,
+          if (address != null && address.trim().isNotEmpty)
+            ..._wrapAddress('Alamat  ${address.trim()}', compactMaxChars),
+        ]
+      : lines;
+  final activeFont = compact
+      ? (photo.width >= 2400 ? img.arial24 : img.arial14)
+      : font;
+  final lineGap = (activeFont.lineHeight * 0.35).round();
+  final lineHeight = activeFont.lineHeight + lineGap;
+  final panelWidth = compact ? (photo.width * 0.72).round() : photo.width - padding * 2;
+  final panelHeight = padding * 2 + lineHeight * visibleLines.length;
   final left = padding;
-  final right = photo.width - padding - 1;
-  final top = photo.height - panelHeight - padding;
-  final bottom = photo.height - padding - 1;
+  final right = left + panelWidth;
+  final top = header ? padding : photo.height - panelHeight - padding;
+  final bottom = top + panelHeight;
 
   img.fillRect(
     photo,
@@ -93,13 +118,23 @@ void _renderWatermark({
     y2: bottom,
     color: img.ColorRgba8(8, 18, 16, 190),
   );
+  if (header) {
+    img.fillRect(
+      photo,
+      x1: left,
+      y1: top,
+      x2: left + (padding * 0.35).round(),
+      y2: bottom,
+      color: img.ColorRgb8(101, 214, 176),
+    );
+  }
 
   var textY = top + padding;
-  for (var index = 0; index < lines.length; index++) {
+  for (var index = 0; index < visibleLines.length; index++) {
     img.drawString(
       photo,
-      lines[index],
-      font: font,
+      visibleLines[index],
+      font: activeFont,
       x: left + padding,
       y: textY,
       color: index == 0

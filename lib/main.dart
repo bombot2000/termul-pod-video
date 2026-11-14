@@ -8,6 +8,7 @@ import 'screens/camera_capture_screen.dart';
 import 'screens/media_preview_screen.dart';
 import 'services/gallery_media_service.dart';
 import 'services/pod_storage_service.dart';
+import 'screens/watermark_settings_section.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -124,7 +125,7 @@ class _PodHomePageState extends State<PodHomePage> {
             onVideoCapture: () => _openCamera(videoMode: true),
           ),
           _HistoryPage(key: ValueKey(_historyVersion)),
-          const _SettingsPlaceholder(),
+          const WatermarkSettingsSection(),
         ],
       ),
       bottomNavigationBar: NavigationBar(
@@ -574,34 +575,3 @@ class _HistoryPageState extends State<_HistoryPage> {
   }
 }
 
-class _SettingsPlaceholder extends StatelessWidget {
-  const _SettingsPlaceholder();
-
-  @override
-  Widget build(BuildContext context) => ListView(
-        padding: const EdgeInsets.all(20),
-        children: const [
-          Card(
-              child: ListTile(
-                  leading: Icon(Icons.text_fields),
-                  title: Text('Template watermark'),
-                  subtitle: Text(
-                      'Watermark waktu, koordinat GPS, akurasi, dan alamat (jika tersedia) tertanam pada foto serta video. Template belum dapat diubah.'))),
-          Card(
-              child: ListTile(
-                  leading: Icon(Icons.gps_fixed),
-                  title: Text('Informasi GPS'),
-                  subtitle: Text('Koordinat, akurasi, dan alamat dicatat jika GPS serta layanan geocoding tersedia. Jika alamat gagal diperoleh, dokumentasi tetap disimpan.'))),
-          Card(
-              child: ListTile(
-                  leading: Icon(Icons.storage_outlined),
-                  title: Text('Penyimpanan'),
-                  subtitle: Text('Foto dan video tersimpan di perangkat dan diekspor ke album Galeri Termul POD. Backup cloud belum tersedia.'))),
-          Card(
-              child: ListTile(
-                  leading: Icon(Icons.info_outline),
-                  title: Text('Tentang aplikasi'),
-                  subtitle: Text('Termul POD Video · 0.1.0'))),
-        ],
-      );
-}

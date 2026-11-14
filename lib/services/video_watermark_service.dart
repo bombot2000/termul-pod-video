@@ -6,6 +6,8 @@ import 'package:flutter/painting.dart';
 import 'package:intl/intl.dart';
 import 'package:watermark_kit/watermark_kit.dart';
 
+import 'pod_watermark_settings_service.dart';
+
 class VideoWatermarkService {
   VideoWatermarkService({WatermarkKit? watermarkKit})
       : _watermarkKit = watermarkKit ?? WatermarkKit();
@@ -26,17 +28,19 @@ class VideoWatermarkService {
       throw const FileSystemException('File video kamera tidak ditemukan.');
     }
 
+    final layout = await PodWatermarkSettingsService().loadLayout();
     final overlay = await VideoWatermarkOverlay.render(
       capturedAt: capturedAt,
       latitude: latitude,
       longitude: longitude,
       accuracy: accuracy,
       address: address,
+      layout: layout.name,
     );
     final task = await _watermarkKit.composeVideo(
       inputVideoPath: source.path,
       watermarkImage: overlay,
-      anchor: 'bottomLeft',
+      anchor: layout == PodWatermarkLayout.header ? 'topLeft' : 'bottomLeft',
       margin: 0.025,
       marginUnit: 'percent',
       widthPercent: 0.94,
@@ -71,10 +75,16 @@ class VideoWatermarkOverlay {
     double? longitude,
     double? accuracy,
     String? address,
+    String layout = 'classic',
   }) async {
     const width = 1600;
     const height = 260;
     const horizontalPadding = 48.0;
+    final compact = layout == 'compact';
+    final header = layout == 'header';
+    final panelWidth = compact ? 1180.0 : width.toDouble();
+    final panelHeight = compact ? 230.0 : height.toDouble();
+    final panelTop = header || !compact ? 0.0 : height - panelHeight;
     final recorder = ui.PictureRecorder();
     final canvas = ui.Canvas(
       recorder,
@@ -82,7 +92,7 @@ class VideoWatermarkOverlay {
     );
 
     final panel = ui.RRect.fromRectAndRadius(
-      ui.Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()),
+      ui.Rect.fromLTWH(0, panelTop, panelWidth, panelHeight),
       const ui.Radius.circular(28),
     );
     canvas.drawRRect(
@@ -91,7 +101,7 @@ class VideoWatermarkOverlay {
     );
     canvas.drawRRect(
       ui.RRect.fromRectAndRadius(
-        ui.Rect.fromLTWH(0, 0, 10, height.toDouble()),
+        ui.Rect.fromLTWH(0, panelTop, 10, panelHeight),
         const ui.Radius.circular(5),
       ),
       ui.Paint()..color = const ui.Color(0xFF65D6B0),
@@ -117,8 +127,8 @@ class VideoWatermarkOverlay {
         textDirection: ui.TextDirection.ltr,
         maxLines: maxLines,
         ellipsis: '…',
-      )..layout(maxWidth: width - horizontalPadding * 2);
-      painter.paint(canvas, ui.Offset(horizontalPadding, top));
+      )..layout(maxWidth: panelWidth - horizontalPadding * 2);
+      painter.paint(canvas, ui.Offset(horizontalPadding, panelTop + top));
       painter.dispose();
     }
 
@@ -133,39 +143,45 @@ class VideoWatermarkOverlay {
         ? 'Alamat  ${address!.trim()}'
         : 'Alamat lokasi tidak tersedia';
 
-    drawLine(
-      'TERMUL POD  •  PROOF OF DELIVERY',
-      top: 20,
-      fontSize: 28,
-      color: const ui.Color(0xFF79E5C2),
-      weight: FontWeight.w800,
-    );
-    drawLine(
-      timestamp,
-      top: 60,
-      fontSize: 38,
-      color: const ui.Color(0xFFFFFFFF),
-      weight: FontWeight.w800,
-    );
-    drawLine(
-      gps,
-      top: 112,
-      fontSize: 30,
-      color: const ui.Color(0xFFFFFFFF),
-    );
-    drawLine(
-      accuracyText,
-      top: 154,
-      fontSize: 28,
-      color: const ui.Color(0xFFE0EAE6),
-    );
-    drawLine(
-      location,
-      top: 194,
-      fontSize: 27,
-      color: const ui.Color(0xFFE0EAE6),
-      maxLines: 2,
-    );
+    if (compact) {
+      drawLine(
+        timestamp,
+        top: 18,
+        fontSize: 35,
+        color: const ui.Color(0xFF79E5C2),
+        weight: FontWeight.w800,
+      );
+      drawLine(gps, top: 68, fontSize: 27,
+          color: const ui.Color(0xFFFFFFFF));
+      drawLine(accuracyText, top: 108, fontSize: 25,
+          color: const ui.Color(0xFFE0EAE6));
+      drawLine(location, top: 148, fontSize: 24,
+          color: const ui.Color(0xFFE0EAE6), maxLines: 2);
+    } else if (header) {
+      drawLine('TERMUL POD  •  PROOF OF DELIVERY', top: 16,
+          fontSize: 28, color: const ui.Color(0xFF79E5C2),
+          weight: FontWeight.w800);
+      drawLine(timestamp, top: 56, fontSize: 38,
+          color: const ui.Color(0xFFFFFFFF), weight: FontWeight.w800);
+      drawLine(gps, top: 108, fontSize: 30,
+          color: const ui.Color(0xFFFFFFFF));
+      drawLine(accuracyText, top: 150, fontSize: 28,
+          color: const ui.Color(0xFFE0EAE6));
+      drawLine(location, top: 190, fontSize: 27,
+          color: const ui.Color(0xFFE0EAE6), maxLines: 2);
+    } else {
+      drawLine('TERMUL POD  •  PROOF OF DELIVERY', top: 20,
+          fontSize: 28, color: const ui.Color(0xFF79E5C2),
+          weight: FontWeight.w800);
+      drawLine(timestamp, top: 60, fontSize: 38,
+          color: const ui.Color(0xFFFFFFFF), weight: FontWeight.w800);
+      drawLine(gps, top: 112, fontSize: 30,
+          color: const ui.Color(0xFFFFFFFF));
+      drawLine(accuracyText, top: 154, fontSize: 28,
+          color: const ui.Color(0xFFE0EAE6));
+      drawLine(location, top: 194, fontSize: 27,
+          color: const ui.Color(0xFFE0EAE6), maxLines: 2);
+    }
 
     final picture = recorder.endRecording();
     final image = await picture.toImage(width, height);
