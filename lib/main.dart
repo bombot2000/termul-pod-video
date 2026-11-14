@@ -1,4 +1,11 @@
+import 'dart:io';
+
+import 'package:intl/intl.dart';
 import 'package:material_ui/material_ui.dart';
+
+import 'models/pod_media_record.dart';
+import 'screens/camera_capture_screen.dart';
+import 'services/pod_storage_service.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -46,8 +53,23 @@ class PodHomePage extends StatefulWidget {
 
 class _PodHomePageState extends State<PodHomePage> {
   int _selectedIndex = 0;
-
+  int _historyVersion = 0;
   static const _titles = ['Dokumentasi POD', 'Riwayat', 'Pengaturan'];
+
+  Future<void> _openCamera() async {
+    final record = await Navigator.of(context).push<PodMediaRecord>(
+      MaterialPageRoute(builder: (_) => const CameraCaptureScreen()),
+    );
+    if (!mounted) return;
+    if (record != null) {
+      setState(() => _historyVersion++);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(record.type == 'video'
+            ? 'Video POD tersimpan di perangkat.'
+            : 'Foto POD tersimpan di perangkat.')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -56,14 +78,21 @@ class _PodHomePageState extends State<PodHomePage> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('TERMUL POD', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1.1)),
-            Text(_titles[_selectedIndex], style: Theme.of(context).textTheme.labelMedium?.copyWith(color: Colors.grey[600])),
+            const Text('TERMUL POD',
+                style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1.1)),
+            Text(_titles[_selectedIndex],
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: Colors.grey[600])),
           ],
         ),
         actions: [
           IconButton(
             tooltip: 'Status penyimpanan',
-            onPressed: () => _showInfo(context, 'Mode offline', 'Penyimpanan lokal sedang disiapkan. Setelah modul selesai, dokumentasi akan disimpan di perangkat dan diunggah saat jaringan tersedia.'),
+            onPressed: () => _showInfo(
+              context,
+              'Penyimpanan offline',
+              'Foto dan video disimpan di penyimpanan internal aplikasi. Data tetap tersedia tanpa koneksi internet.',
+            ),
             icon: const Icon(Icons.cloud_off_outlined),
           ),
           const SizedBox(width: 8),
@@ -71,15 +100,29 @@ class _PodHomePageState extends State<PodHomePage> {
       ),
       body: IndexedStack(
         index: _selectedIndex,
-        children: const [_CaptureDashboard(), _HistoryPlaceholder(), _SettingsPlaceholder()],
+        children: [
+          _CaptureDashboard(onCapture: _openCamera),
+          _HistoryPage(key: ValueKey(_historyVersion)),
+          const _SettingsPlaceholder(),
+        ],
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
-        onDestinationSelected: (index) => setState(() => _selectedIndex = index),
+        onDestinationSelected: (index) =>
+            setState(() => _selectedIndex = index),
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.camera_alt_outlined), selectedIcon: Icon(Icons.camera_alt), label: 'Dokumentasi'),
-          NavigationDestination(icon: Icon(Icons.photo_library_outlined), selectedIcon: Icon(Icons.photo_library), label: 'Riwayat'),
-          NavigationDestination(icon: Icon(Icons.tune_outlined), selectedIcon: Icon(Icons.tune), label: 'Pengaturan'),
+          NavigationDestination(
+              icon: Icon(Icons.camera_alt_outlined),
+              selectedIcon: Icon(Icons.camera_alt),
+              label: 'Dokumentasi'),
+          NavigationDestination(
+              icon: Icon(Icons.photo_library_outlined),
+              selectedIcon: Icon(Icons.photo_library),
+              label: 'Riwayat'),
+          NavigationDestination(
+              icon: Icon(Icons.tune_outlined),
+              selectedIcon: Icon(Icons.tune),
+              label: 'Pengaturan'),
         ],
       ),
     );
@@ -91,14 +134,19 @@ class _PodHomePageState extends State<PodHomePage> {
       builder: (context) => AlertDialog(
         title: Text(title),
         content: Text(message),
-        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Tutup'))],
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Tutup'))
+        ],
       ),
     );
   }
 }
 
 class _CaptureDashboard extends StatelessWidget {
-  const _CaptureDashboard();
+  const _CaptureDashboard({required this.onCapture});
+  final VoidCallback onCapture;
 
   @override
   Widget build(BuildContext context) {
@@ -108,69 +156,118 @@ class _CaptureDashboard extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(22),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(colors: [Color(0xFF125D50), Color(0xFF218A70)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+            gradient: const LinearGradient(
+              colors: [Color(0xFF125D50), Color(0xFF218A70)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
             borderRadius: BorderRadius.circular(26),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Row(children: [
-                Icon(Icons.verified_user_outlined, color: Colors.white70, size: 18),
+                Icon(Icons.verified_user_outlined,
+                    color: Colors.white70, size: 18),
                 SizedBox(width: 8),
-                Text('PROOF OF DELIVERY', style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.4)),
+                Text('PROOF OF DELIVERY',
+                    style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.4)),
               ]),
               const SizedBox(height: 18),
-              const Text('Dokumentasikan\nsetiap pengiriman.', style: TextStyle(color: Colors.white, fontSize: 27, height: 1.15, fontWeight: FontWeight.w800)),
+              const Text('Dokumentasikan\nsetiap pengiriman.',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 27,
+                      height: 1.15,
+                      fontWeight: FontWeight.w800)),
               const SizedBox(height: 10),
-              const Text('Foto dan video dengan informasi waktu serta lokasi.', style: TextStyle(color: Colors.white70, height: 1.4)),
+              const Text(
+                  'Foto dan video dengan informasi waktu serta lokasi.',
+                  style: TextStyle(color: Colors.white70, height: 1.4)),
               const SizedBox(height: 22),
               SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
-                  onPressed: () => _showComingSoon(context, 'Kamera POD'),
+                  onPressed: onCapture,
                   icon: const Icon(Icons.camera_alt),
                   label: const Text('Mulai dokumentasi'),
-                  style: FilledButton.styleFrom(backgroundColor: Colors.white, foregroundColor: const Color(0xFF125D50), padding: const EdgeInsets.symmetric(vertical: 15)),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: const Color(0xFF125D50),
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                  ),
                 ),
               ),
             ],
           ),
         ),
         const SizedBox(height: 24),
-        Text('Pilih dokumentasi', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+        Text('Pilih dokumentasi',
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(fontWeight: FontWeight.w800)),
         const SizedBox(height: 12),
         Row(
           children: [
-            Expanded(child: _ActionTile(icon: Icons.photo_camera_outlined, title: 'Foto POD', subtitle: 'Bukti serah terima', onTap: () => _showComingSoon(context, 'Kamera foto'))),
+            Expanded(
+              child: _ActionTile(
+                icon: Icons.photo_camera_outlined,
+                title: 'Foto POD',
+                subtitle: 'Bukti serah terima',
+                onTap: onCapture,
+              ),
+            ),
             const SizedBox(width: 12),
-            Expanded(child: _ActionTile(icon: Icons.videocam_outlined, title: 'Video POD', subtitle: 'Rekaman pengiriman', onTap: () => _showComingSoon(context, 'Kamera video'))),
+            Expanded(
+              child: _ActionTile(
+                icon: Icons.videocam_outlined,
+                title: 'Video POD',
+                subtitle: 'Rekaman pengiriman',
+                onTap: onCapture,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 22),
-        Text('Informasi dokumentasi', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+        Text('Informasi dokumentasi',
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(fontWeight: FontWeight.w800)),
         const SizedBox(height: 12),
-        const _InfoRow(icon: Icons.schedule, title: 'Tanggal dan waktu', detail: 'Timestamp otomatis'),
-        const _InfoRow(icon: Icons.location_on_outlined, title: 'Lokasi GPS', detail: 'Koordinat dan akurasi lokasi'),
-        const _InfoRow(icon: Icons.layers_outlined, title: 'Watermark', detail: 'Template yang dapat disesuaikan'),
-        const _InfoRow(icon: Icons.offline_pin_outlined, title: 'Penyimpanan lokal', detail: 'Dirancang untuk bekerja tanpa koneksi internet'),
+        const _InfoRow(
+            icon: Icons.schedule,
+            title: 'Tanggal dan waktu',
+            detail: 'Dicatat saat pengambilan'),
+        const _InfoRow(
+            icon: Icons.location_on_outlined,
+            title: 'Lokasi GPS',
+            detail: 'Koordinat dan akurasi jika izin tersedia'),
+        const _InfoRow(
+            icon: Icons.layers_outlined,
+            title: 'Watermark',
+            detail: 'Tahap berikutnya: watermark pada file foto/video'),
+        const _InfoRow(
+            icon: Icons.offline_pin_outlined,
+            title: 'Penyimpanan lokal',
+            detail: 'Foto dan video tersimpan di perangkat'),
       ],
-    );
-  }
-
-  void _showComingSoon(BuildContext context, String feature) {
-    showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(feature),
-        content: const Text('Modul ini sedang disiapkan. Fondasi antarmuka sudah tersedia; integrasi kamera, GPS, dan watermark akan ditambahkan bertahap.'),
-        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Mengerti'))],
-      ),
     );
   }
 }
 
 class _ActionTile extends StatelessWidget {
-  const _ActionTile({required this.icon, required this.title, required this.subtitle, required this.onTap});
+  const _ActionTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
   final IconData icon;
   final String title;
   final String subtitle;
@@ -184,13 +281,24 @@ class _ActionTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         child: Padding(
           padding: const EdgeInsets.all(16),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Container(width: 44, height: 44, decoration: BoxDecoration(color: const Color(0xFFE7F3EF), borderRadius: BorderRadius.circular(14)), child: Icon(icon, color: const Color(0xFF146C5A))),
-            const SizedBox(height: 18),
-            Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
-            const SizedBox(height: 4),
-            Text(subtitle, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
-          ]),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                    color: const Color(0xFFE7F3EF),
+                    borderRadius: BorderRadius.circular(14)),
+                child: Icon(icon, color: const Color(0xFF146C5A)),
+              ),
+              const SizedBox(height: 18),
+              Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 4),
+              Text(subtitle,
+                  style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+            ],
+          ),
         ),
       ),
     );
@@ -198,7 +306,8 @@ class _ActionTile extends StatelessWidget {
 }
 
 class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.icon, required this.title, required this.detail});
+  const _InfoRow(
+      {required this.icon, required this.title, required this.detail});
   final IconData icon;
   final String title;
   final String detail;
@@ -207,42 +316,188 @@ class _InfoRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: Card(child: ListTile(
-        leading: CircleAvatar(backgroundColor: const Color(0xFFE7F3EF), child: Icon(icon, color: const Color(0xFF146C5A), size: 20)),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
-        subtitle: Text(detail, style: const TextStyle(fontSize: 12)),
-        trailing: const Text('Segera', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF8A9B94))),
-      )),
+      child: Card(
+        child: ListTile(
+          leading: CircleAvatar(
+            backgroundColor: const Color(0xFFE7F3EF),
+            child: Icon(icon, color: const Color(0xFF146C5A), size: 20),
+          ),
+          title: Text(title,
+              style:
+                  const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+          subtitle: Text(detail, style: const TextStyle(fontSize: 12)),
+          trailing: const Icon(Icons.check_circle_outline,
+              color: Color(0xFF27836D), size: 20),
+        ),
+      ),
     );
   }
 }
 
-class _HistoryPlaceholder extends StatelessWidget {
-  const _HistoryPlaceholder();
+class _HistoryPage extends StatefulWidget {
+  const _HistoryPage({super.key});
 
   @override
-  Widget build(BuildContext context) => const Center(
-    child: Padding(
-      padding: EdgeInsets.all(32),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Icon(Icons.photo_library_outlined, size: 56, color: Color(0xFF8A9B94)),
-        SizedBox(height: 14),
-        Text('Belum ada dokumentasi', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-        SizedBox(height: 6),
-        Text('Hasil foto dan video POD akan tampil di sini.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
-      ]),
-    ),
-  );
+  State<_HistoryPage> createState() => _HistoryPageState();
+}
+
+class _HistoryPageState extends State<_HistoryPage> {
+  late Future<List<PodMediaRecord>> _records;
+
+  @override
+  void initState() {
+    super.initState();
+    _records = PodStorageService().getRecords();
+  }
+
+  Future<void> _delete(PodMediaRecord record) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Hapus dokumentasi?'),
+        content: const Text(
+            'File ini akan dihapus dari penyimpanan aplikasi dan tidak dapat dipulihkan.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Batal')),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Hapus')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await PodStorageService().deleteRecord(record);
+    if (!mounted) return;
+    setState(() => _records = PodStorageService().getRecords());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<PodMediaRecord>>(
+      future: _records,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(
+              child: Text('Gagal membaca riwayat: ' +
+                  snapshot.error.toString()));
+        }
+        final records = snapshot.data ?? const <PodMediaRecord>[];
+        if (records.isEmpty) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.photo_library_outlined,
+                      size: 56, color: Color(0xFF8A9B94)),
+                  SizedBox(height: 14),
+                  Text('Belum ada dokumentasi',
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                  SizedBox(height: 6),
+                  Text('Hasil foto dan video POD akan tampil di sini.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey)),
+                ],
+              ),
+            ),
+          );
+        }
+        return ListView.separated(
+          padding: const EdgeInsets.all(16),
+          itemCount: records.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 8),
+          itemBuilder: (context, index) {
+            final record = records[index];
+            final isVideo = record.type == 'video';
+            final file = File(record.path);
+            final location = record.latitude == null
+                ? 'Lokasi GPS tidak tersedia'
+                : record.latitude!.toStringAsFixed(6) +
+                    ', ' +
+                    record.longitude!.toStringAsFixed(6);
+            return Card(
+              child: ListTile(
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                leading: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: SizedBox(
+                    width: 58,
+                    height: 58,
+                    child: isVideo
+                        ? Container(
+                            color: const Color(0xFFE7F3EF),
+                            child: const Icon(Icons.play_circle_outline,
+                                color: Color(0xFF146C5A), size: 34),
+                          )
+                        : Image.file(
+                            file,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const ColoredBox(
+                              color: Color(0xFFE7F3EF),
+                              child: Icon(Icons.broken_image_outlined),
+                            ),
+                          ),
+                  ),
+                ),
+                title: Text(isVideo ? 'Video POD' : 'Foto POD',
+                    style: const TextStyle(fontWeight: FontWeight.w700)),
+                subtitle: Text(
+                  DateFormat('dd MMM yyyy • HH:mm').format(record.createdAt) +
+                      '\n' +
+                      location,
+                ),
+                isThreeLine: true,
+                trailing: IconButton(
+                  tooltip: 'Hapus dokumentasi',
+                  onPressed: () => _delete(record),
+                  icon: const Icon(Icons.delete_outline),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 }
 
 class _SettingsPlaceholder extends StatelessWidget {
   const _SettingsPlaceholder();
 
   @override
-  Widget build(BuildContext context) => ListView(padding: const EdgeInsets.all(20), children: const [
-    Card(child: ListTile(leading: Icon(Icons.text_fields), title: Text('Template watermark'), subtitle: Text('Pengaturan desain watermark akan tersedia pada tahap berikutnya.'))),
-    Card(child: ListTile(leading: Icon(Icons.gps_fixed), title: Text('Informasi GPS'), subtitle: Text('Pengaturan akurasi dan tampilan lokasi.'))),
-    Card(child: ListTile(leading: Icon(Icons.storage_outlined), title: Text('Penyimpanan'), subtitle: Text('Lokasi penyimpanan dokumentasi lokal.'))),
-    Card(child: ListTile(leading: Icon(Icons.info_outline), title: Text('Tentang aplikasi'), subtitle: Text('Termul POD Video · 0.1.0'))),
-  ]);
+  Widget build(BuildContext context) => ListView(
+        padding: const EdgeInsets.all(20),
+        children: const [
+          Card(
+              child: ListTile(
+                  leading: Icon(Icons.text_fields),
+                  title: Text('Template watermark'),
+                  subtitle: Text(
+                      'Pengaturan desain watermark akan tersedia pada tahap berikutnya.'))),
+          Card(
+              child: ListTile(
+                  leading: Icon(Icons.gps_fixed),
+                  title: Text('Informasi GPS'),
+                  subtitle:
+                      Text('Pengaturan akurasi dan tampilan lokasi.'))),
+          Card(
+              child: ListTile(
+                  leading: Icon(Icons.storage_outlined),
+                  title: Text('Penyimpanan'),
+                  subtitle: Text('Lokasi penyimpanan dokumentasi lokal.'))),
+          Card(
+              child: ListTile(
+                  leading: Icon(Icons.info_outline),
+                  title: Text('Tentang aplikasi'),
+                  subtitle: Text('Termul POD Video · 0.1.0'))),
+        ],
+      );
 }
