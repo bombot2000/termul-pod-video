@@ -265,8 +265,8 @@ class _CaptureDashboard extends StatelessWidget {
         const _InfoRow(
             icon: Icons.layers_outlined,
             title: 'Watermark',
-            detail: 'Tertanam pada foto; watermark video belum tersedia',
-            status: 'FOTO AKTIF'),
+            detail: 'Watermark waktu dan lokasi tertanam pada foto serta video',
+            status: 'FOTO + VIDEO'),
         const _InfoRow(
             icon: Icons.offline_pin_outlined,
             title: 'Penyimpanan lokal',
@@ -451,12 +451,12 @@ class _HistoryPageState extends State<_HistoryPage> {
             final addressLine = record.address?.trim().isNotEmpty == true
                 ? record.address!
                 : 'Alamat lokasi tidak tersedia';
-            final watermarkStatus = isVideo
-                ? 'Watermark video belum tersedia'
-                : record.watermarkApplied == true
-                    ? 'Watermark waktu dan GPS tertanam'
-                    : record.watermarkApplied == false
-                        ? 'Watermark gagal diterapkan'
+            final watermarkStatus = record.watermarkApplied == true
+                ? 'Watermark waktu dan lokasi tertanam'
+                : record.watermarkApplied == false
+                    ? 'Watermark gagal diterapkan'
+                    : isVideo
+                        ? 'Watermark belum diterapkan pada rekaman lama'
                         : 'Status watermark tidak tercatat';
             return Card(
               child: ListTile(
@@ -515,7 +515,7 @@ class _SettingsPlaceholder extends StatelessWidget {
                   leading: Icon(Icons.text_fields),
                   title: Text('Template watermark'),
                   subtitle: Text(
-                      'Foto: watermark waktu, koordinat GPS, dan akurasi. Template belum dapat diubah; watermark video belum tersedia.'))),
+                      'Watermark waktu, koordinat GPS, akurasi, dan alamat (jika tersedia) tertanam pada foto serta video. Template belum dapat diubah.'))),
           Card(
               child: ListTile(
                   leading: Icon(Icons.gps_fixed),

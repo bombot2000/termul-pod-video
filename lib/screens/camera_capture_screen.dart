@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import '../models/pod_media_record.dart';
 import '../services/location_address_service.dart';
 import '../services/photo_watermark_service.dart';
+import '../services/video_watermark_service.dart';
 import '../services/pod_storage_service.dart';
 
 class CameraCaptureScreen extends StatefulWidget {
@@ -26,6 +27,8 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
   bool _initializing = true;
   bool _recording = false;
   bool _saving = false;
+  bool _processingVideo = false;
+  double _processingProgress = 0;
   bool _videoMode = false;
   DateTime? _recordingStartedAt;
   String? _error;
@@ -202,6 +205,36 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
             'Foto tetap disimpan, tetapi watermark gagal diterapkan: $exception',
           );
         }
+      } else {
+        if (mounted) {
+          setState(() {
+            _processingVideo = true;
+            _processingProgress = 0;
+          });
+        }
+        try {
+          watermarkedPath = await VideoWatermarkService().createWatermarkedCopy(
+            sourcePath: media.path,
+            capturedAt: capturedAt,
+            latitude: position?.latitude,
+            longitude: position?.longitude,
+            accuracy: position?.accuracy,
+            address: address,
+            onProgress: (progress) {
+              if (mounted) {
+                setState(() => _processingProgress = progress);
+              }
+            },
+          );
+          sourcePath = watermarkedPath;
+          watermarkApplied = true;
+        } catch (exception) {
+          _showMessage(
+            'Video tetap disimpan, tetapi watermark gagal diterapkan: $exception',
+          );
+        } finally {
+          if (mounted) setState(() => _processingVideo = false);
+        }
       }
 
       final PodMediaRecord record;
@@ -214,7 +247,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
           longitude: position?.longitude,
           accuracy: position?.accuracy,
           address: address,
-          watermarkApplied: type == 'photo' ? watermarkApplied : null,
+          watermarkApplied: watermarkApplied,
         );
       } finally {
         if (watermarkedPath != null) {
@@ -342,7 +375,20 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 18, 24, 26),
-              child: Row(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_saving)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Text(
+                        _processingVideo
+                            ? 'Menerapkan watermark video ${(_processingProgress * 100).round()}%'
+                            : 'Menyimpan dokumentasi...',
+                        style: const TextStyle(color: Colors.white70, fontSize: 12),
+                      ),
+                    ),
+                  Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   const SizedBox(width: 54),
@@ -384,6 +430,16 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
                         color: Colors.white,
                         size: 30),
                   ),
+                ],
+                  ),
+                  if (_processingVideo)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 10),
+                      child: SizedBox(
+                        width: 220,
+                        child: LinearProgressIndicator(value: _processingProgress),
+                      ),
+                    ),
                 ],
               ),
             ),

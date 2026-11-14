@@ -10,7 +10,7 @@ A separate Flutter Android application for photo/video proof of delivery (POD). 
 - Capture timestamp and optional GPS coordinates/accuracy are recorded as metadata.
 - Photo/video files are copied into app-private local storage and indexed for the History screen.
 - History displays saved photos and metadata and supports deleting a selected record.
-- Photo watermark is burned into the saved JPEG with capture time, GPS coordinates (when available), and accuracy. Video watermark and address reverse-geocoding remain planned.
+- Photo and video watermarks are burned into saved media with capture time, GPS coordinates, accuracy, and reverse-geocoded address when available. Video export uses the native MediaCodec/OpenGL pipeline through watermark_kit; if processing fails, the original recording is still saved and the failure is recorded in history.
 - GitHub Actions runs static analysis, widget tests, and an Android release-mode APK build.
 - A successful push build publishes the APK to a GitHub Release.
 
@@ -53,8 +53,6 @@ Commit the generated `android/` directory and `.metadata` only if you choose to 
 
 ## Roadmap
 
-1. Improve GPS status feedback and add reverse geocoded address metadata.
-2. Add configurable photo watermark templates.
-3. Implement video watermark overlay/export strategy.
-4. Add media playback, sharing/export, and storage management.
-5. Complete offline tests and physical-device verification.
+1. Add configurable photo and video watermark templates.
+2. Add media playback, sharing/export, and storage management.
+3. Complete physical-device verification for video codec, audio passthrough, and long recordings.
