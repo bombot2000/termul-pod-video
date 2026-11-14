@@ -181,6 +181,13 @@ void main() {
     expect(fix, isNull);
   });
 
+  test('acquire rejects last-known positions with invalid accuracy', () async {
+    backend.lastKnownSample = sample(accuracy: double.nan);
+    await tracker.start();
+    final fix = await tracker.acquire(wait: const Duration(milliseconds: 30));
+    expect(fix, isNull);
+  });
+
   test('denied permission is reported and nothing is subscribed', () async {
     backend.availability = PodLocationAvailability.denied;
     await tracker.start();
@@ -295,6 +302,32 @@ void main() {
       current = current.add(const Duration(seconds: 61));
       await push(gpsSample(Duration.zero));
       expect(skewed.latest!.clockOffsetSeconds, 0);
+    });
+
+    test('last-known fix uses an offset learned from live GPS samples',
+        () async {
+      await skewed.start();
+      const ahead = Duration(seconds: 60);
+      await push(gpsSample(ahead));
+      current = current.add(const Duration(seconds: 1));
+      await push(gpsSample(ahead));
+      expect(skewed.latest!.clockOffsetSeconds, -60);
+
+      // Let the live fix expire, then ask for a newer last-known position.
+      current = current.add(const Duration(seconds: 31));
+      backend.lastKnownSample = PodLocationSample(
+        latitude: -7.9826,
+        longitude: 112.6308,
+        accuracy: 8,
+        timestamp: current.add(ahead),
+      );
+
+      final fix = await skewed.acquire(
+        wait: const Duration(milliseconds: 20),
+      );
+      expect(fix, isNotNull);
+      expect(fix!.ageSeconds, 0);
+      expect(fix.clockOffsetSeconds, -60);
     });
 
     test('moving samples are passed through unsmoothed', () async {

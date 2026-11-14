@@ -374,7 +374,13 @@ class PodLocationTracker {
         lastKnown.latitude <= 90 &&
         lastKnown.longitude >= -180 &&
         lastKnown.longitude <= 180;
+    // Unlike live samples, a last-known fix is not passed through the GPS
+    // engine's accuracy normalization. Reject malformed platform values so
+    // NaN/zero accuracy cannot reach the watermark or JSON history.
+    final validAccuracy =
+        lastKnown.accuracy.isFinite && lastKnown.accuracy > 0;
     return !validCoordinates ||
+            !validAccuracy ||
             fix.age > maxLastKnownAge ||
             fix.age < -maxFutureSkew
         ? null
