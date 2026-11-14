@@ -92,7 +92,7 @@ class _MediaPreviewScreenState extends State<MediaPreviewScreen> {
                   if (record.latitude != null && record.longitude != null) ...[
                     const SizedBox(height: 4),
                     Text(
-                      '\${record.latitude!.toStringAsFixed(6)}, \${record.longitude!.toStringAsFixed(6)}',
+                      '${record.latitude!.toStringAsFixed(6)}, ${record.longitude!.toStringAsFixed(6)}',
                       style: const TextStyle(color: Colors.white70, fontSize: 12),
                     ),
                   ],
@@ -164,7 +164,7 @@ class _MediaPreviewScreenState extends State<MediaPreviewScreen> {
                   icon: Icon(value.isPlaying ? Icons.pause_circle : Icons.play_circle),
                 ),
                 Text(
-                  '\${_formatDuration(value.position)} / \${_formatDuration(value.duration)}',
+                  '${_formatDuration(value.position)} / ${_formatDuration(value.duration)}',
                   style: const TextStyle(color: Colors.white70),
                 ),
               ],
