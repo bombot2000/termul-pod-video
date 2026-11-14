@@ -1,6 +1,4 @@
 import 'dart:async';
-import 'dart:io';
-
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -55,7 +53,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
     try {
       _cameras = await availableCameras();
       if (_cameras.isEmpty) throw CameraException('NoCamera', 'Kamera tidak ditemukan');
-      _cameraIndex = _cameraIndex.clamp(0, _cameras.length - 1);
+      _cameraIndex = _cameraIndex.clamp(0, _cameras.length - 1).toInt();
       final controller = CameraController(
         _cameras[_cameraIndex],
         ResolutionPreset.high,
@@ -227,7 +225,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
             child: Column(
               children: [
                 Text(
-                  DateFormat('EEEE, dd MMM yyyy · HH:mm:ss', 'id_ID').format(DateTime.now()),
+                  DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now()),
                   style: const TextStyle(color: Colors.white70, fontSize: 13),
                 ),
                 const SizedBox(height: 18),
