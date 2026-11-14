@@ -5,6 +5,7 @@ import 'package:image/image.dart' as img;
 import 'package:intl/intl.dart';
 
 import 'pod_watermark_settings_service.dart';
+import 'watermark_text_layout.dart';
 
 class PhotoWatermarkService {
   Future<String> createWatermarkedCopy({
@@ -84,11 +85,11 @@ void _renderWatermark({
       .clamp(12, 100)
       .toInt();
 
-  final gpsLines = _wrapAddress(gpsLine, maxChars);
-  final accuracyLines = _wrapAddress(accuracyLine, maxChars);
+  final gpsLines = wrapWatermarkText(gpsLine, maxChars);
+  final accuracyLines = wrapWatermarkText(accuracyLine, maxChars);
   final addressLines = address == null || address.trim().isEmpty
       ? <String>[]
-      : _wrapAddress('Alamat  ${address.trim()}', maxChars);
+      : wrapWatermarkText('Alamat  ${address.trim()}', maxChars);
 
   final visibleLines = compact
       ? <String>[
@@ -149,58 +150,4 @@ void _renderWatermark({
 
   final output = File(outputPath);
   output.writeAsBytesSync(img.encodeJpg(photo, quality: 92), flush: true);
-}
-
-List<String> _wrapAddress(String value, int maxChars) {
-  final words = value.split(RegExp(r'\\s+'));
-  final lines = <String>[];
-  var current = '';
-  var truncated = false;
-
-  for (final word in words) {
-    // Split unusually long unbroken tokens too, so coordinates and IDs do
-    // not extend beyond the watermark panel.
-    if (word.length > maxChars) {
-      if (current.isNotEmpty) {
-        lines.add(current);
-        current = '';
-        if (lines.length == 2) {
-          truncated = true;
-          break;
-        }
-      }
-      for (var offset = 0; offset < word.length; offset += maxChars) {
-        final end = (offset + maxChars).clamp(0, word.length);
-        if (lines.length == 2) {
-          truncated = true;
-          break;
-        }
-        lines.add(word.substring(offset, end));
-      }
-      if (truncated) break;
-      continue;
-    }
-
-    final candidate = current.isEmpty ? word : '$current $word';
-    if (candidate.length > maxChars && current.isNotEmpty) {
-      lines.add(current);
-      current = word;
-      if (lines.length == 2) {
-        truncated = true;
-        break;
-      }
-    } else {
-      current = candidate;
-    }
-  }
-
-  if (!truncated && current.isNotEmpty && lines.length < 2) {
-    lines.add(current);
-  } else if (current.isNotEmpty) {
-    truncated = true;
-  }
-  if (truncated && lines.isNotEmpty) {
-    lines[lines.length - 1] = '${lines.last}…';
-  }
-  return lines;
 }
