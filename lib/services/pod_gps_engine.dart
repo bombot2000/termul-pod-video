@@ -125,7 +125,7 @@ class PodGpsEngine {
     if (_window.isEmpty) {
       _lat0 = latitude;
       _lon0 = longitude;
-      _cosLat = math.max(math.cos(latitude * math.pi / 180), 0.01);
+      _cosLat = math.max(math.cos(latitude * math.pi / 180), 0.01).toDouble();
       _lastAt = timestamp;
       _kx = _KalmanAxis(0, acc);
       _ky = _KalmanAxis(0, acc);
@@ -156,7 +156,8 @@ class PodGpsEngine {
     final count = _window.length;
     _worstWindowAccuracy = _window.fold<double>(
       0,
-      (worst, observation) => math.max(worst, observation.accuracy),
+      (worst, observation) =>
+          math.max(worst, observation.accuracy).toDouble(),
     );
 
     final double outLat;
