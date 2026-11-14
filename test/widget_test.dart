@@ -38,7 +38,11 @@ void main() {
 
     await tester.drag(find.byType(ListView).first, const Offset(0, -900));
     await tester.pumpAndSettle();
-    expect(find.textContaining('Watermark waktu dan GPS tertanam'), findsOneWidget);
+    expect(find.text('AKTIF'), findsOneWidget);
+    expect(find.text('OPSIONAL'), findsOneWidget);
+    expect(find.text('FOTO AKTIF'), findsOneWidget);
+    expect(find.text('AKTIF OFFLINE'), findsOneWidget);
+    expect(find.textContaining('watermark video belum tersedia'), findsOneWidget);
     expect(find.textContaining('tersimpan di perangkat'), findsOneWidget);
   });
 }
