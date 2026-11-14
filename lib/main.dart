@@ -5,6 +5,8 @@ import 'package:material_ui/material_ui.dart';
 
 import 'models/pod_media_record.dart';
 import 'screens/camera_capture_screen.dart';
+import 'screens/media_preview_screen.dart';
+import 'services/gallery_media_service.dart';
 import 'services/pod_storage_service.dart';
 
 void main() {
@@ -64,11 +66,24 @@ class _PodHomePageState extends State<PodHomePage> {
     );
     if (!mounted) return;
     if (record != null) {
+      var savedRecord = record;
+      try {
+        await GalleryMediaService().save(record);
+        savedRecord = await PodStorageService().updateGalleryStatus(record, true);
+      } catch (_) {
+        try {
+          savedRecord = await PodStorageService().updateGalleryStatus(record, false);
+        } catch (_) {
+          // The original history entry and media file remain safe.
+        }
+      }
+      if (!mounted) return;
       setState(() => _historyVersion++);
+      final label = savedRecord.type == 'video' ? 'Video' : 'Foto';
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(record.type == 'video'
-            ? 'Video POD tersimpan di perangkat.'
-            : 'Foto POD tersimpan di perangkat.')),
+        SnackBar(content: Text(savedRecord.gallerySaved == true
+            ? '$label POD tersimpan di Galeri dan riwayat.'
+            : '$label POD tersimpan di riwayat, tetapi gagal disalin ke Galeri.')),
       );
     }
   }
@@ -379,6 +394,40 @@ class _HistoryPageState extends State<_HistoryPage> {
     _records = PodStorageService().getRecords();
   }
 
+  Future<void> _openPreview(PodMediaRecord record) async {
+    final file = File(record.path);
+    if (!await file.exists()) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('File dokumentasi tidak ditemukan.')),
+      );
+      return;
+    }
+    if (!mounted) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(builder: (_) => MediaPreviewScreen(record: record)),
+    );
+  }
+
+  Future<void> _saveToGallery(PodMediaRecord record) async {
+    try {
+      await GalleryMediaService().save(record);
+      await PodStorageService().updateGalleryStatus(record, true);
+      if (!mounted) return;
+      setState(() => _records = PodStorageService().getRecords());
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(record.type == 'video'
+            ? 'Video berhasil disimpan ke Galeri.'
+            : 'Foto berhasil disimpan ke Galeri.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal menyimpan ke Galeri: $error')),
+      );
+    }
+  }
+
   Future<void> _delete(PodMediaRecord record) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -460,6 +509,7 @@ class _HistoryPageState extends State<_HistoryPage> {
                         : 'Status watermark tidak tercatat';
             return Card(
               child: ListTile(
+                onTap: () => _openPreview(record),
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 leading: ClipRRect(
@@ -489,10 +539,31 @@ class _HistoryPageState extends State<_HistoryPage> {
                   '${DateFormat('dd MMM yyyy • HH:mm').format(record.createdAt)}\n$addressLine\n$coordinates\n$watermarkStatus',
                 ),
                 isThreeLine: true,
-                trailing: IconButton(
-                  tooltip: 'Hapus dokumentasi',
-                  onPressed: () => _delete(record),
-                  icon: const Icon(Icons.delete_outline),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: record.gallerySaved == true
+                          ? 'Tersimpan di Galeri'
+                          : 'Simpan ke Galeri',
+                      onPressed: record.gallerySaved == true
+                          ? null
+                          : () => _saveToGallery(record),
+                      icon: Icon(
+                        record.gallerySaved == true
+                            ? Icons.check_circle_outline
+                            : Icons.save_alt_outlined,
+                        color: record.gallerySaved == true
+                            ? const Color(0xFF146C5A)
+                            : null,
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Hapus dokumentasi',
+                      onPressed: () => _delete(record),
+                      icon: const Icon(Icons.delete_outline),
+                    ),
+                  ],
                 ),
               ),
             );

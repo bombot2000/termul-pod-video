@@ -20,6 +20,10 @@ PERMISSIONS = (
     "android.permission.ACCESS_FINE_LOCATION",
     "android.permission.ACCESS_COARSE_LOCATION",
 )
+LEGACY_STORAGE_PERMISSION = (
+    '    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" '
+    'android:maxSdkVersion="29" />'
+)
 FEATURES = (
     ('android.hardware.camera', '    <uses-feature android:name="android.hardware.camera" android:required="false" />'),
     ('android.hardware.location.gps', '    <uses-feature android:name="android.hardware.location.gps" android:required="false" />'),
@@ -40,6 +44,8 @@ def configure_manifest() -> None:
         element for name, element in FEATURES
         if f'android:name="{name}"' not in source
     )
+    if 'android.permission.WRITE_EXTERNAL_STORAGE' not in source:
+        additions.append(LEGACY_STORAGE_PERMISSION)
 
     if not additions:
         print("Manifest permissions/features already configured")

@@ -8,6 +8,7 @@ class PodMediaRecord {
     this.accuracy,
     this.address,
     this.watermarkApplied,
+    this.gallerySaved,
   });
 
   final String path;
@@ -18,6 +19,7 @@ class PodMediaRecord {
   final double? accuracy;
   final String? address;
   final bool? watermarkApplied;
+  final bool? gallerySaved;
 
   Map<String, Object?> toJson() => {
         'path': path,
@@ -28,6 +30,7 @@ class PodMediaRecord {
         'accuracy': accuracy,
         'address': address,
         'watermarkApplied': watermarkApplied,
+        'gallerySaved': gallerySaved,
       };
 
   factory PodMediaRecord.fromJson(Map<String, dynamic> json) =>
@@ -41,5 +44,6 @@ class PodMediaRecord {
         accuracy: (json['accuracy'] as num?)?.toDouble(),
         address: json['address'] as String?,
         watermarkApplied: json['watermarkApplied'] as bool?,
+        gallerySaved: json['gallerySaved'] as bool?,
       );
 }

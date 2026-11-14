@@ -109,6 +109,38 @@ class PodStorageService {
     return record;
   }
 
+  Future<PodMediaRecord> updateGalleryStatus(
+    PodMediaRecord record,
+    bool saved,
+  ) async {
+    final preferences = await SharedPreferences.getInstance();
+    final records = await getRecords();
+    final index = records.indexWhere((item) => item.path == record.path);
+    if (index < 0) {
+      throw const FileSystemException('Dokumentasi tidak ditemukan di riwayat.');
+    }
+    final updated = PodMediaRecord(
+      path: record.path,
+      type: record.type,
+      createdAt: record.createdAt,
+      latitude: record.latitude,
+      longitude: record.longitude,
+      accuracy: record.accuracy,
+      address: record.address,
+      watermarkApplied: record.watermarkApplied,
+      gallerySaved: saved,
+    );
+    records[index] = updated;
+    final persisted = await preferences.setStringList(
+      _recordsKey,
+      records.map((item) => jsonEncode(item.toJson())).toList(),
+    );
+    if (!persisted) {
+      throw const FileSystemException('Status Galeri gagal disimpan.');
+    }
+    return updated;
+  }
+
   Future<void> deleteRecord(PodMediaRecord record) async {
     final preferences = await SharedPreferences.getInstance();
     final records = await getRecords();

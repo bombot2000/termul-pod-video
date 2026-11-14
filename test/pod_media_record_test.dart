@@ -37,6 +37,7 @@ void main() {
       accuracy: 8.5,
       address: 'Jl. Merdeka, Malang, Jawa Timur',
       watermarkApplied: true,
+      gallerySaved: true,
     );
 
     final restored = PodMediaRecord.fromJson(original.toJson());
@@ -49,6 +50,7 @@ void main() {
     expect(restored.accuracy, 8.5);
     expect(restored.address, 'Jl. Merdeka, Malang, Jawa Timur');
     expect(restored.watermarkApplied, isTrue);
+    expect(restored.gallerySaved, isTrue);
   });
 
   test('POD media record supports capture without GPS permission', () {
@@ -65,6 +67,7 @@ void main() {
     expect(restored.accuracy, isNull);
     expect(restored.address, isNull);
     expect(restored.watermarkApplied, isNull);
+    expect(restored.gallerySaved, isNull);
   });
 
   test('legacy history entries remain readable without watermark status', () {
@@ -91,6 +94,23 @@ void main() {
     final restored = (await storage.getRecords()).single;
     expect(saved.address, 'Jl. Merdeka, Malang');
     expect(restored.address, 'Jl. Merdeka, Malang');
+    expect(restored.watermarkApplied, isTrue);
+  });
+
+  test('gallery export status is persisted without changing media metadata', () async {
+    final saved = await storage.saveMedia(
+      sourcePath: sourceFile.path,
+      type: 'video',
+      createdAt: DateTime.parse('2026-11-14T09:30:00.000'),
+      address: 'Malang',
+      watermarkApplied: true,
+    );
+    final updated = await storage.updateGalleryStatus(saved, true);
+    final restored = (await storage.getRecords()).single;
+    expect(updated.gallerySaved, isTrue);
+    expect(restored.gallerySaved, isTrue);
+    expect(restored.path, saved.path);
+    expect(restored.address, 'Malang');
     expect(restored.watermarkApplied, isTrue);
   });
 
