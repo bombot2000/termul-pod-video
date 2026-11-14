@@ -37,6 +37,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
   Future<PodLocationFix?>? _recordingFix;
   Future<String?>? _recordingAddress;
   bool _appPaused = false;
+  bool _startingRecording = false;
   int _cameraInitGeneration = 0;
 
   @override
@@ -128,6 +129,9 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
       _cameraInitGeneration++;
       _initializing = false;
       unawaited(_locationTracker.stop());
+      // Do not dispose a controller while a camera plugin operation or the
+      // capture/save pipeline still owns it. The operation releases it later.
+      if (_saving || _startingRecording) return;
       final controller = _controller;
       if (_recording && !_saving && controller != null &&
           controller.value.isRecordingVideo) {
@@ -187,14 +191,27 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
       // returns a fresh live fix immediately, or waits briefly in the
       // background while the clip is being recorded.
       final fixFuture = _locationTracker.acquire();
+      _startingRecording = true;
       try {
         await controller.startVideoRecording();
         _recordingStartedAt = DateTime.now();
         _recordingFix = fixFuture;
         _recordingAddress = fixFuture.then(_addressFor);
         if (mounted) { setState(() => _recording = true); }
+        if (_appPaused) {
+          // The pause callback may have arrived while startVideoRecording()
+          // was pending. Finalize the clip now that recording has actually
+          // started, rather than disposing the active camera underneath it.
+          unawaited(_finishRecordingAndReleaseCamera(controller));
+        }
       } on CameraException catch (exception) {
         _showMessage(_cameraErrorMessage(exception));
+      } finally {
+        _startingRecording = false;
+        if (_appPaused && !_recording && identical(_controller, controller)) {
+          _controller = null;
+          await controller.dispose();
+        }
       }
       return;
     }
@@ -320,6 +337,13 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
       _showMessage('Gagal menyimpan dokumentasi: $exception');
     } finally {
       if (mounted) { setState(() => _saving = false); }
+      if (_appPaused) {
+        // Lifecycle pause deferred disposal while capture/save was in flight.
+        // Release only after the media has been safely persisted (or failed).
+        final pausedController = _controller;
+        _controller = null;
+        if (pausedController != null) await pausedController.dispose();
+      }
     }
   }
 
