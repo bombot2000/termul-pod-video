@@ -121,6 +121,13 @@ void main() {
     expect(tracker.latest!.sampleCount, 2);
   });
 
+  test('invalid platform accuracy is treated as weak', () async {
+    await tracker.start();
+    await deliver(sample(accuracy: double.nan));
+    expect(tracker.latest!.accuracy, podPoorAccuracyMeters + 1);
+    expect(tracker.latest!.isPoor, isTrue);
+  });
+
   test('weak accuracy and mock providers are flagged', () async {
     await tracker.start();
     await deliver(sample(accuracy: podPoorAccuracyMeters + 30, mocked: true));
