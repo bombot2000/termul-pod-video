@@ -33,6 +33,9 @@ jobs:
             flutter create --platforms=android --org com.termul --project-name termul_pod_video .
           fi
 
+      - name: Configure Android permissions and minSdk
+        run: python3 tool/configure_android.py
+
       - name: Install dependencies
         run: flutter pub get
 
@@ -43,7 +46,7 @@ jobs:
         run: flutter test --no-pub
 
       - name: Build APK
-        run: flutter build apk --release --no-pub
+        run: flutter build apk --release --no-pub --build-number="$GITHUB_RUN_NUMBER"
 
       - name: Publish APK Release
         if: success()
