@@ -2,12 +2,19 @@ name: Build Android APK
 
 on: push
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
 
       - name: Set up Java 21
         uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165
@@ -48,6 +55,11 @@ jobs:
           else
             RELEASE_TAG="build-$GITHUB_RUN_NUMBER"
           fi
-          gh release create "$RELEASE_TAG" build/app/outputs/flutter-apk/app-release.apk \
-            --title "Termul POD Video $RELEASE_TAG" \
-            --notes "Automated APK build from commit $GITHUB_SHA. Unsigned/per-build signing; no permanent keystore is used."
+
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" build/app/outputs/flutter-apk/app-release.apk --clobber
+          else
+            gh release create "$RELEASE_TAG" build/app/outputs/flutter-apk/app-release.apk \
+              --title "Termul POD Video $RELEASE_TAG" \
+              --notes "Automated APK build from commit $GITHUB_SHA. No permanent keystore is used."
+          fi
