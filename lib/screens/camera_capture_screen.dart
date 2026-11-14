@@ -6,6 +6,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
 
 import '../models/pod_media_record.dart';
+import '../services/photo_watermark_service.dart';
 import '../services/pod_storage_service.dart';
 
 class CameraCaptureScreen extends StatefulWidget {
@@ -173,14 +174,39 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
       }
 
       final position = await _readPosition();
+      var sourcePath = media.path;
+      String? watermarkedPath;
+      if (type == 'photo') {
+        try {
+          watermarkedPath = await PhotoWatermarkService().createWatermarkedCopy(
+            sourcePath: media.path,
+            capturedAt: capturedAt,
+            latitude: position?.latitude,
+            longitude: position?.longitude,
+            accuracy: position?.accuracy,
+          );
+          sourcePath = watermarkedPath;
+        } catch (exception) {
+          _showMessage(
+            'Foto tetap disimpan, tetapi watermark gagal diterapkan: $exception',
+          );
+        }
+      }
+
       final record = await PodStorageService().saveMedia(
-        sourcePath: media.path,
+        sourcePath: sourcePath,
         type: type,
         createdAt: capturedAt,
         latitude: position?.latitude,
         longitude: position?.longitude,
         accuracy: position?.accuracy,
       );
+      if (watermarkedPath != null) {
+        final temporaryWatermark = File(watermarkedPath);
+        if (await temporaryWatermark.exists()) {
+          await temporaryWatermark.delete();
+        }
+      }
       if (!mounted) { return; }
       Navigator.of(context).pop<PodMediaRecord>(record);
     } catch (exception) {
