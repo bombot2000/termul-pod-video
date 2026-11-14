@@ -17,6 +17,8 @@ void main() {
   testWidgets('unimplemented features are labelled and open a notice', (tester) async {
     await tester.pumpWidget(const TermulPodApp());
 
+    await tester.drag(find.byType(ListView).first, const Offset(0, -900));
+    await tester.pumpAndSettle();
     expect(find.text('Segera'), findsWidgets);
 
     await tester.tap(find.text('Mulai dokumentasi'));
