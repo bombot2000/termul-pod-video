@@ -11,6 +11,7 @@ class PodMediaRecord {
     this.gallerySaved,
     this.locationMocked,
     this.locationAgeSeconds,
+    this.locationClockOffsetSeconds,
   });
 
   final String path;
@@ -29,6 +30,10 @@ class PodMediaRecord {
   /// Age of the GPS fix, in seconds, at the moment it was attached.
   final int? locationAgeSeconds;
 
+  /// Device clock minus GPS time, in seconds, when the app had to correct for
+  /// a wrong phone clock. Null when unknown, 0 when the clock agreed.
+  final int? locationClockOffsetSeconds;
+
   PodMediaRecord copyWith({bool? gallerySaved}) => PodMediaRecord(
         path: path,
         type: type,
@@ -41,6 +46,7 @@ class PodMediaRecord {
         gallerySaved: gallerySaved ?? this.gallerySaved,
         locationMocked: locationMocked,
         locationAgeSeconds: locationAgeSeconds,
+        locationClockOffsetSeconds: locationClockOffsetSeconds,
       );
 
   Map<String, Object?> toJson() => {
@@ -55,6 +61,7 @@ class PodMediaRecord {
         'gallerySaved': gallerySaved,
         'locationMocked': locationMocked,
         'locationAgeSeconds': locationAgeSeconds,
+        'locationClockOffsetSeconds': locationClockOffsetSeconds,
       };
 
   factory PodMediaRecord.fromJson(Map<String, dynamic> json) =>
@@ -71,5 +78,7 @@ class PodMediaRecord {
         gallerySaved: json['gallerySaved'] as bool?,
         locationMocked: json['locationMocked'] as bool?,
         locationAgeSeconds: (json['locationAgeSeconds'] as num?)?.toInt(),
+        locationClockOffsetSeconds:
+            (json['locationClockOffsetSeconds'] as num?)?.toInt(),
       );
 }

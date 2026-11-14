@@ -11,6 +11,7 @@ class PodGpsConfig {
     this.centroidWeight = 0.6,
     this.kalmanAccelNoise = 1.0,
     this.fallbackAccuracyMeters = 50,
+    this.movingSpeedMetersPerSecond = 1.0,
   });
 
   final int samplesBeforeLock;
@@ -21,6 +22,10 @@ class PodGpsConfig {
   final double centroidWeight;
   final double kalmanAccelNoise;
   final double fallbackAccuracyMeters;
+
+  /// At or above this reported speed the user counts as moving: smoothing is
+  /// skipped and the raw reading is used, so the position never lags behind.
+  final double movingSpeedMetersPerSecond;
 }
 
 class PodGpsEstimate {
@@ -91,6 +96,7 @@ class PodGpsEngine {
     required double longitude,
     required double accuracy,
     required DateTime timestamp,
+    double? speed,
   }) {
     final acc = accuracy.isFinite && accuracy > 0
         ? accuracy
@@ -111,6 +117,12 @@ class PodGpsEngine {
     // Do not carry an old velocity estimate across a long GPS interruption.
     if (lastAccepted != null &&
         timestamp.difference(lastAccepted) > config.windowMaxAge) {
+      reset();
+    }
+
+    if (speed != null &&
+        speed.isFinite &&
+        speed >= config.movingSpeedMetersPerSecond) {
       reset();
     }
 

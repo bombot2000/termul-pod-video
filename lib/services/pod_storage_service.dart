@@ -48,6 +48,7 @@ class PodStorageService {
     bool? watermarkApplied,
     bool? locationMocked,
     int? locationAgeSeconds,
+    int? locationClockOffsetSeconds,
     bool moveSource = false,
   }) async {
     final source = File(sourcePath);
@@ -101,6 +102,7 @@ class PodStorageService {
       watermarkApplied: watermarkApplied,
       locationMocked: locationMocked,
       locationAgeSeconds: locationAgeSeconds,
+      locationClockOffsetSeconds: locationClockOffsetSeconds,
     );
 
     try {

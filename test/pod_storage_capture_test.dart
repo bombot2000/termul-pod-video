@@ -59,6 +59,7 @@ void main() {
       accuracy: 12.5,
       locationMocked: true,
       locationAgeSeconds: 7,
+      locationClockOffsetSeconds: -60,
     );
 
     await storage.updateGalleryStatus(saved, true);
@@ -66,6 +67,7 @@ void main() {
 
     expect(restored.locationMocked, isTrue);
     expect(restored.locationAgeSeconds, 7);
+    expect(restored.locationClockOffsetSeconds, -60);
     expect(restored.accuracy, 12.5);
     expect(restored.gallerySaved, isTrue);
   });
@@ -105,6 +107,7 @@ void main() {
 
     expect(restored.locationMocked, isNull);
     expect(restored.locationAgeSeconds, isNull);
+    expect(restored.locationClockOffsetSeconds, isNull);
     expect(restored.latitude, -7.9826);
   });
 }

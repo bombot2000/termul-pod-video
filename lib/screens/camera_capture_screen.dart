@@ -316,6 +316,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
           watermarkApplied: watermarkApplied,
           locationMocked: fix?.isMocked,
           locationAgeSeconds: fix?.ageSeconds,
+          locationClockOffsetSeconds: fix?.clockOffsetSeconds,
           moveSource: true,
         );
       } catch (_) {
