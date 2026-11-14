@@ -445,9 +445,12 @@ class _HistoryPageState extends State<_HistoryPage> {
             final record = records[index];
             final isVideo = record.type == 'video';
             final file = File(record.path);
-            final location = record.latitude == null
-                ? 'Lokasi GPS tidak tersedia'
+            final coordinates = record.latitude == null
+                ? 'Koordinat GPS tidak tersedia'
                 : '${record.latitude!.toStringAsFixed(6)}, ${record.longitude!.toStringAsFixed(6)}';
+            final addressLine = record.address?.trim().isNotEmpty == true
+                ? record.address!
+                : 'Alamat lokasi tidak tersedia';
             final watermarkStatus = isVideo
                 ? 'Watermark video belum tersedia'
                 : record.watermarkApplied == true
@@ -483,7 +486,7 @@ class _HistoryPageState extends State<_HistoryPage> {
                 title: Text(isVideo ? 'Video POD' : 'Foto POD',
                     style: const TextStyle(fontWeight: FontWeight.w700)),
                 subtitle: Text(
-                  '${DateFormat('dd MMM yyyy • HH:mm').format(record.createdAt)}\n$location\n$watermarkStatus',
+                  '${DateFormat('dd MMM yyyy • HH:mm').format(record.createdAt)}\n$addressLine\n$coordinates\n$watermarkStatus',
                 ),
                 isThreeLine: true,
                 trailing: IconButton(
@@ -517,8 +520,7 @@ class _SettingsPlaceholder extends StatelessWidget {
               child: ListTile(
                   leading: Icon(Icons.gps_fixed),
                   title: Text('Informasi GPS'),
-                  subtitle:
-                      Text('Koordinat dan akurasi dicatat jika izin tersedia. Alamat lokasi belum ditambahkan.'))),
+                  subtitle: Text('Koordinat, akurasi, dan alamat dicatat jika GPS serta layanan geocoding tersedia. Jika alamat gagal diperoleh, dokumentasi tetap disimpan.'))),
           Card(
               child: ListTile(
                   leading: Icon(Icons.storage_outlined),
