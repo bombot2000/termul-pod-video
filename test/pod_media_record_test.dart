@@ -1,7 +1,31 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:termul_pod_video/models/pod_media_record.dart';
+import 'package:termul_pod_video/services/pod_storage_service.dart';
 
 void main() {
+  late Directory temporaryDirectory;
+  late File sourceFile;
+  late PodStorageService storage;
+
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    temporaryDirectory = await Directory.systemTemp.createTemp('termul_pod_test_');
+    sourceFile = File('${temporaryDirectory.path}/camera_source.jpg');
+    await sourceFile.writeAsBytes([1, 2, 3, 4]);
+    storage = PodStorageService(
+      documentsDirectoryProvider: () async => temporaryDirectory,
+    );
+  });
+
+  tearDown(() async {
+    if (await temporaryDirectory.exists()) {
+      await temporaryDirectory.delete(recursive: true);
+    }
+  });
+
   test('POD media record preserves timestamp and GPS metadata', () {
     final createdAt = DateTime.parse('2026-11-14T09:30:00.000');
     final original = PodMediaRecord(
@@ -35,5 +59,48 @@ void main() {
     expect(restored.latitude, isNull);
     expect(restored.longitude, isNull);
     expect(restored.accuracy, isNull);
+  });
+
+  test('same timestamp captures receive unique file names and both persist', () async {
+    final createdAt = DateTime.parse('2026-11-14T09:30:00.000');
+    final first = await storage.saveMedia(
+      sourcePath: sourceFile.path,
+      type: 'photo',
+      createdAt: createdAt,
+    );
+    final second = await storage.saveMedia(
+      sourcePath: sourceFile.path,
+      type: 'photo',
+      createdAt: createdAt,
+    );
+
+    expect(first.path, isNot(second.path));
+    expect(await File(first.path).exists(), isTrue);
+    expect(await File(second.path).exists(), isTrue);
+
+    final records = await storage.getRecords();
+    expect(records, hasLength(2));
+    expect(records.map((record) => record.path).toSet(), hasLength(2));
+  });
+
+  test('delete removes the selected file and only its history entry', () async {
+    final first = await storage.saveMedia(
+      sourcePath: sourceFile.path,
+      type: 'photo',
+      createdAt: DateTime.parse('2026-11-14T09:30:00.000'),
+    );
+    final second = await storage.saveMedia(
+      sourcePath: sourceFile.path,
+      type: 'video',
+      createdAt: DateTime.parse('2026-11-14T09:31:00.000'),
+    );
+
+    await storage.deleteRecord(first);
+
+    expect(await File(first.path).exists(), isFalse);
+    expect(await File(second.path).exists(), isTrue);
+    final records = await storage.getRecords();
+    expect(records, hasLength(1));
+    expect(records.single.path, second.path);
   });
 }
