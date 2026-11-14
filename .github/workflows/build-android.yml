@@ -18,9 +18,7 @@ env:
 
 jobs:
   build:
-    # A PR from a branch in this repo is already built by its push run.
-    # Fork PRs still build (read-only token, no release step).
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    # Build same-repository and fork PRs as well. Release publishing remains push-only.
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -84,9 +82,7 @@ jobs:
           if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" "$APK" --clobber --repo "$GITHUB_REPOSITORY"
           else
-            # --target pins the tag to the commit that was built. Without it,
-            # a new tag is created at the default branch head, which is the
-            # wrong commit for builds from feature branches.
+            # --target pins the tag to the commit that was built.
             gh release create "$RELEASE_TAG" "$APK" \
               --repo "$GITHUB_REPOSITORY" \
               --target "$GITHUB_SHA" \
