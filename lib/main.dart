@@ -255,19 +255,23 @@ class _CaptureDashboard extends StatelessWidget {
         const _InfoRow(
             icon: Icons.schedule,
             title: 'Tanggal dan waktu',
-            detail: 'Dicatat saat pengambilan'),
+            detail: 'Dicatat saat pengambilan',
+            status: 'AKTIF'),
         const _InfoRow(
             icon: Icons.location_on_outlined,
             title: 'Lokasi GPS',
-            detail: 'Koordinat dan akurasi jika izin tersedia'),
+            detail: 'Koordinat dan akurasi jika izin tersedia',
+            status: 'OPSIONAL'),
         const _InfoRow(
             icon: Icons.layers_outlined,
             title: 'Watermark',
-            detail: 'Watermark waktu dan GPS tertanam pada file foto; video menyusul'),
+            detail: 'Tertanam pada foto; watermark video belum tersedia',
+            status: 'FOTO AKTIF'),
         const _InfoRow(
             icon: Icons.offline_pin_outlined,
             title: 'Penyimpanan lokal',
-            detail: 'Foto dan video tersimpan di perangkat'),
+            detail: 'Foto dan video tersimpan di perangkat tanpa internet',
+            status: 'AKTIF OFFLINE'),
       ],
     );
   }
@@ -318,11 +322,16 @@ class _ActionTile extends StatelessWidget {
 }
 
 class _InfoRow extends StatelessWidget {
-  const _InfoRow(
-      {required this.icon, required this.title, required this.detail});
+  const _InfoRow({
+    required this.icon,
+    required this.title,
+    required this.detail,
+    required this.status,
+  });
   final IconData icon;
   final String title;
   final String detail;
+  final String status;
 
   @override
   Widget build(BuildContext context) {
@@ -338,8 +347,16 @@ class _InfoRow extends StatelessWidget {
               style:
                   const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
           subtitle: Text(detail, style: const TextStyle(fontSize: 12)),
-          trailing: const Icon(Icons.check_circle_outline,
-              color: Color(0xFF27836D), size: 20),
+          trailing: Text(
+            status,
+            textAlign: TextAlign.end,
+            style: const TextStyle(
+              color: Color(0xFF58746B),
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.2,
+            ),
+          ),
         ),
       ),
     );
@@ -495,18 +512,18 @@ class _SettingsPlaceholder extends StatelessWidget {
                   leading: Icon(Icons.text_fields),
                   title: Text('Template watermark'),
                   subtitle: Text(
-                      'Watermark foto aktif: waktu, koordinat GPS, dan akurasi. Watermark video menyusul.'))),
+                      'Foto: watermark waktu, koordinat GPS, dan akurasi. Template belum dapat diubah; watermark video belum tersedia.'))),
           Card(
               child: ListTile(
                   leading: Icon(Icons.gps_fixed),
                   title: Text('Informasi GPS'),
                   subtitle:
-                      Text('Pengaturan akurasi dan tampilan lokasi.'))),
+                      Text('Koordinat dan akurasi dicatat jika izin tersedia. Alamat lokasi belum ditambahkan.'))),
           Card(
               child: ListTile(
                   leading: Icon(Icons.storage_outlined),
                   title: Text('Penyimpanan'),
-                  subtitle: Text('Lokasi penyimpanan dokumentasi lokal.'))),
+                  subtitle: Text('Foto dan video disimpan di penyimpanan internal aplikasi. Ekspor dan backup belum tersedia.'))),
           Card(
               child: ListTile(
                   leading: Icon(Icons.info_outline),
