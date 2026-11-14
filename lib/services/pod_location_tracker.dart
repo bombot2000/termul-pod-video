@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 
+import 'pod_gps_engine.dart';
+
 /// Accuracy (metres) above which a fix is flagged as weak in the UI and history.
 const double podPoorAccuracyMeters = 50;
 
@@ -17,7 +19,6 @@ enum PodLocationState {
   deniedForever,
 }
 
-/// A raw position reading, independent of the geolocator plugin types.
 class PodLocationSample {
   const PodLocationSample({
     required this.latitude,
@@ -25,16 +26,25 @@ class PodLocationSample {
     required this.accuracy,
     required this.timestamp,
     this.isMocked = false,
+    this.rawLatitude,
+    this.rawLongitude,
+    this.sampleCount = 1,
+    this.locked = false,
   });
 
+  /// Position used for the watermark and saved record.
   final double latitude;
   final double longitude;
+  /// Android/geolocator horizontal accuracy for the current raw reading.
   final double accuracy;
   final DateTime timestamp;
   final bool isMocked;
+  final double? rawLatitude;
+  final double? rawLongitude;
+  final int sampleCount;
+  final bool locked;
 }
 
-/// A reading together with how old it was when it was used.
 class PodLocationFix {
   const PodLocationFix({required this.sample, required this.age});
 
@@ -45,6 +55,10 @@ class PodLocationFix {
   double get longitude => sample.longitude;
   double get accuracy => sample.accuracy;
   bool get isMocked => sample.isMocked;
+  double get rawLatitude => sample.rawLatitude ?? sample.latitude;
+  double get rawLongitude => sample.rawLongitude ?? sample.longitude;
+  int get sampleCount => sample.sampleCount;
+  bool get isLocked => sample.locked;
   bool get isPoor => accuracy > podPoorAccuracyMeters;
   int get ageSeconds => age.isNegative ? 0 : age.inSeconds;
 }
@@ -83,12 +97,19 @@ class GeolocatorLocationBackend implements PodLocationBackend {
 
   @override
   Stream<PodLocationSample> positions() {
-    return Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 0,
-      ),
-    ).map(_toSample);
+    final LocationSettings settings =
+        defaultTargetPlatform == TargetPlatform.android
+            ? AndroidSettings(
+                accuracy: LocationAccuracy.high,
+                distanceFilter: 0,
+                intervalDuration: const Duration(seconds: 1),
+              )
+            : const LocationSettings(
+                accuracy: LocationAccuracy.high,
+                distanceFilter: 0,
+              );
+    return Geolocator.getPositionStream(locationSettings: settings)
+        .map(_toSample);
   }
 
   @override
@@ -112,26 +133,26 @@ class GeolocatorLocationBackend implements PodLocationBackend {
   }
 }
 
-/// Keeps a live GPS fix while the camera screen is open, so a capture can use
-/// the position at the moment of the shutter instead of waiting for GPS after
-/// the picture has already been taken.
+/// Keeps a live GPS fix warm while the camera screen is open.
 class PodLocationTracker {
   PodLocationTracker({
     PodLocationBackend? backend,
     DateTime Function()? clock,
+    PodGpsEngine? engine,
     this.maxFixAge = const Duration(seconds: 30),
     this.maxLastKnownAge = const Duration(minutes: 5),
+    this.maxFutureSkew = const Duration(seconds: 5),
   })  : _backend = backend ?? GeolocatorLocationBackend(),
-        _clock = clock ?? DateTime.now;
+        _clock = clock ?? DateTime.now,
+        _engine = engine ?? PodGpsEngine();
 
   final PodLocationBackend _backend;
   final DateTime Function() _clock;
-
-  /// A live fix older than this is not used for a capture.
+  final PodGpsEngine _engine;
   final Duration maxFixAge;
-
-  /// A cached "last known" position older than this is rejected.
   final Duration maxLastKnownAge;
+  /// Small device-clock skew is tolerated; farther-future fixes are rejected.
+  final Duration maxFutureSkew;
 
   final ValueNotifier<PodLocationStatus> status =
       ValueNotifier<PodLocationStatus>(
@@ -142,6 +163,7 @@ class PodLocationTracker {
       StreamController<PodLocationSample>.broadcast();
   StreamSubscription<PodLocationSample>? _subscription;
   PodLocationSample? _latest;
+  DateTime? _lastAcceptedTimestamp;
   int _generation = 0;
   bool _starting = false;
   bool _disposed = false;
@@ -149,16 +171,17 @@ class PodLocationTracker {
   PodLocationFix _fixFor(PodLocationSample sample) =>
       PodLocationFix(sample: sample, age: _clock().difference(sample.timestamp));
 
+  bool _isUsableLiveFix(PodLocationFix fix) =>
+      fix.age <= maxFixAge && fix.age >= -maxFutureSkew;
+
   /// The newest live fix, or null if there is none or it is too old.
   PodLocationFix? get latest {
     final sample = _latest;
     if (sample == null) return null;
     final fix = _fixFor(sample);
-    return fix.age > maxFixAge ? null : fix;
+    return _isUsableLiveFix(fix) ? fix : null;
   }
 
-  /// Requests permission if needed and starts listening. Safe to call
-  /// repeatedly. A [stop] issued while permission is being requested wins.
   Future<void> start() async {
     if (_disposed || _subscription != null || _starting) return;
     _starting = true;
@@ -193,14 +216,49 @@ class PodLocationTracker {
         status.value = const PodLocationStatus(PodLocationState.denied);
       }
     } finally {
-      // A stopped start() may finish after a newer start() has begun.
-      // Only the generation that still owns the startup may clear this flag.
       if (generation == _generation) _starting = false;
     }
   }
 
-  void _onSample(PodLocationSample sample) {
+  void _onSample(PodLocationSample raw) {
     if (_disposed) return;
+    final age = _clock().difference(raw.timestamp);
+    // Expired, future-dated, malformed and out-of-order events must not
+    // replace a newer fix or contaminate the smoothing window.
+    if (age > maxFixAge || age < -maxFutureSkew) return;
+    if (!raw.latitude.isFinite ||
+        !raw.longitude.isFinite ||
+        raw.latitude < -90 ||
+        raw.latitude > 90 ||
+        raw.longitude < -180 ||
+        raw.longitude > 180) {
+      return;
+    }
+    final previousTimestamp = _lastAcceptedTimestamp;
+    if (previousTimestamp != null &&
+        !raw.timestamp.isAfter(previousTimestamp)) {
+      return;
+    }
+
+    final estimate = _engine.add(
+      latitude: raw.latitude,
+      longitude: raw.longitude,
+      accuracy: raw.accuracy,
+      timestamp: raw.timestamp,
+    );
+    final sample = PodLocationSample(
+      latitude: estimate.latitude,
+      longitude: estimate.longitude,
+      // Never display a statistically reduced estimate as device accuracy.
+      accuracy: raw.accuracy,
+      timestamp: raw.timestamp,
+      isMocked: raw.isMocked,
+      rawLatitude: raw.latitude,
+      rawLongitude: raw.longitude,
+      sampleCount: estimate.sampleCount,
+      locked: estimate.locked,
+    );
+    _lastAcceptedTimestamp = raw.timestamp;
     _latest = sample;
     _updates.add(sample);
     status.value = PodLocationStatus(PodLocationState.ready, _fixFor(sample));
@@ -208,21 +266,18 @@ class PodLocationTracker {
 
   Future<void> stop() async {
     _generation++;
-    // Allow a new start immediately; the previous permission request is
-    // invalidated by the generation check above.
     _starting = false;
     final subscription = _subscription;
     _subscription = null;
     await subscription?.cancel();
+    _engine.reset();
+    _latest = null;
+    _lastAcceptedTimestamp = null;
     if (!_disposed) {
       status.value = const PodLocationStatus(PodLocationState.idle);
     }
   }
 
-  /// Returns a position for a capture. A fresh live fix is returned at once
-  /// (synchronously up to the first await, so calling this at the moment of
-  /// the shutter snapshots that moment). Otherwise it waits up to [wait] for
-  /// the next reading, then falls back to a recent last-known position.
   Future<PodLocationFix?> acquire({
     Duration wait = const Duration(seconds: 4),
   }) async {
@@ -231,21 +286,21 @@ class PodLocationTracker {
 
     if (_subscription != null) {
       try {
-        // Ignore stale stream events and keep waiting for a usable fix
-        // until the caller's deadline instead of falling back too early.
         final sample = await _updates.stream
-            .firstWhere((sample) => _fixFor(sample).age <= maxFixAge)
+            .firstWhere((sample) => _isUsableLiveFix(_fixFor(sample)))
             .timeout(wait);
         return _fixFor(sample);
       } catch (_) {
-        // Timed out or closed: fall through to the last-known position.
+        // Timed out or closed: fall through to last-known position.
       }
     }
 
     final lastKnown = await _backend.lastKnown();
     if (lastKnown == null) return null;
     final fix = _fixFor(lastKnown);
-    return fix.age > maxLastKnownAge ? null : fix;
+    return fix.age > maxLastKnownAge || fix.age < -maxFutureSkew
+        ? null
+        : fix;
   }
 
   void dispose() {
