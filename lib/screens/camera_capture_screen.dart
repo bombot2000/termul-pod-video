@@ -7,6 +7,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
 
 import '../models/pod_media_record.dart';
+import '../services/location_address_service.dart';
 import '../services/photo_watermark_service.dart';
 import '../services/pod_storage_service.dart';
 
@@ -175,6 +176,12 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
       }
 
       final position = await _readPosition();
+      final address = position == null
+          ? null
+          : await LocationAddressService().resolveAddress(
+              latitude: position.latitude,
+              longitude: position.longitude,
+            );
       var sourcePath = media.path;
       String? watermarkedPath;
       var watermarkApplied = false;
@@ -186,6 +193,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
             latitude: position?.latitude,
             longitude: position?.longitude,
             accuracy: position?.accuracy,
+            address: address,
           );
           sourcePath = watermarkedPath;
           watermarkApplied = true;
@@ -205,6 +213,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
           latitude: position?.latitude,
           longitude: position?.longitude,
           accuracy: position?.accuracy,
+          address: address,
           watermarkApplied: type == 'photo' ? watermarkApplied : null,
         );
       } finally {
