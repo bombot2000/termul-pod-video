@@ -231,9 +231,12 @@ class PodLocationTracker {
 
     if (_subscription != null) {
       try {
-        final sample = await _updates.stream.first.timeout(wait);
-        final fix = _fixFor(sample);
-        if (fix.age <= maxFixAge) return fix;
+        // Ignore stale stream events and keep waiting for a usable fix
+        // until the caller's deadline instead of falling back too early.
+        final sample = await _updates.stream
+            .firstWhere((sample) => _fixFor(sample).age <= maxFixAge)
+            .timeout(wait);
+        return _fixFor(sample);
       } catch (_) {
         // Timed out or closed: fall through to the last-known position.
       }
