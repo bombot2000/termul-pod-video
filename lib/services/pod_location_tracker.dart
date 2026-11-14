@@ -193,7 +193,9 @@ class PodLocationTracker {
         status.value = const PodLocationStatus(PodLocationState.denied);
       }
     } finally {
-      _starting = false;
+      // A stopped start() may finish after a newer start() has begun.
+      // Only the generation that still owns the startup may clear this flag.
+      if (generation == _generation) _starting = false;
     }
   }
 
@@ -206,6 +208,9 @@ class PodLocationTracker {
 
   Future<void> stop() async {
     _generation++;
+    // Allow a new start immediately; the previous permission request is
+    // invalidated by the generation check above.
+    _starting = false;
     final subscription = _subscription;
     _subscription = null;
     await subscription?.cancel();
@@ -227,7 +232,8 @@ class PodLocationTracker {
     if (_subscription != null) {
       try {
         final sample = await _updates.stream.first.timeout(wait);
-        return _fixFor(sample);
+        final fix = _fixFor(sample);
+        if (fix.age <= maxFixAge) return fix;
       } catch (_) {
         // Timed out or closed: fall through to the last-known position.
       }
