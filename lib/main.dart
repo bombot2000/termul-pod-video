@@ -120,8 +120,7 @@ class _CaptureDashboard extends StatelessWidget {
                 Text('PROOF OF DELIVERY', style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.4)),
               ]),
               const SizedBox(height: 18),
-              const Text('Dokumentasikan
-setiap pengiriman.', style: TextStyle(color: Colors.white, fontSize: 27, height: 1.15, fontWeight: FontWeight.w800)),
+              const Text('Dokumentasikan\\nsetiap pengiriman.', style: TextStyle(color: Colors.white, fontSize: 27, height: 1.15, fontWeight: FontWeight.w800)),
               const SizedBox(height: 10),
               const Text('Foto dan video dengan informasi waktu serta lokasi.', style: TextStyle(color: Colors.white70, height: 1.4)),
               const SizedBox(height: 22),
