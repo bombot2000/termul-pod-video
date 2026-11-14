@@ -1,6 +1,10 @@
 name: Build Android APK
 
-on: push
+on:
+  push:
+    branches: [main, 'feature/**']
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: write
@@ -53,7 +57,7 @@ jobs:
         run: flutter build apk --release --no-pub --build-number="$GITHUB_RUN_NUMBER"
 
       - name: Publish APK Release
-        if: success()
+        if: success() && github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
