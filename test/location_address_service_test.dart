@@ -8,7 +8,7 @@ void main() {
   test('combines useful placemark fields without duplicates', () async {
     final service = LocationAddressService(
       reverseGeocode: (_, __) async => [
-        Placemark(
+        const Placemark(
           name: 'Jl. Merdeka',
           street: 'Jl. Merdeka',
           subLocality: 'Klojen',
