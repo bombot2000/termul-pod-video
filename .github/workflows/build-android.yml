@@ -2,58 +2,49 @@ name: Build Android APK
 
 on:
   push:
-    branches: [main, feature/**]
+    branches: [main, 'feature/**']
   pull_request:
     branches: [main]
-  workflow_dispatch:
-    inputs:
-      release_tag:
-        description: Optional tag to publish this APK as a GitHub Release
-        required: false
-        type: string
 
 permissions:
   contents: write
 
-concurrency:
-  group: android-build-${{ github.ref }}
-  cancel-in-progress: true
+env:
+  FLUTTER_VERSION: "3.50.0"
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - name: Checkout source
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
 
-      - name: Install Java 17
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y openjdk-17-jdk
-          echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> "$GITHUB_ENV"
-          echo "/usr/lib/jvm/java-17-openjdk-amd64/bin" >> "$GITHUB_PATH"
+      - name: Set up Java 21
+        uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165
+        with:
+          distribution: temurin
+          java-version: "21"
 
-      - name: Install Flutter stable
+      - name: Install Flutter
         run: |
-          git clone https://github.com/flutter/flutter.git --depth 1 -b stable "$HOME/flutter"
+          git clone https://github.com/flutter/flutter.git --depth 1 --branch "$FLUTTER_VERSION" "$HOME/flutter"
           echo "$HOME/flutter/bin" >> "$GITHUB_PATH"
           "$HOME/flutter/bin/flutter" --version
 
-      - name: Generate Android platform if missing
+      - name: Generate Android project
         run: |
           if [ ! -d android ]; then
-            flutter create --platforms=android --org com.termul --project-name termul_pod_video .
+            flutter create --no-pub --platforms=android --org com.termul --project-name termul_pod_video .
           fi
 
-      - name: Disable release signing
-        run: |
-          if [ -f android/app/build.gradle.kts ]; then
-            sed -i 's/signingConfig = signingConfigs.getByName("debug")/signingConfig = null/' android/app/build.gradle.kts
-          elif [ -f android/app/build.gradle ]; then
-            sed -i 's/signingConfig signingConfigs.debug/signingConfig null/' android/app/build.gradle
-          fi
+      - name: Configure Android permissions and minSdk
+        run: python3 tool/configure_android.py
 
-      - name: Resolve dependencies
+      - name: Install dependencies
         run: flutter pub get
 
       - name: Analyze
@@ -62,19 +53,24 @@ jobs:
       - name: Test
         run: flutter test --no-pub
 
-      - name: Build unsigned release APK
-        run: flutter build apk --release --no-pub
+      - name: Build APK
+        run: flutter build apk --release --no-pub --build-number="$GITHUB_RUN_NUMBER"
 
-      - name: Publish GitHub Release (optional)
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag != '' }}
+      - name: Publish APK Release
+        if: success() && github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
-          gh release create "$RELEASE_TAG" build/app/outputs/flutter-apk/app-release.apk \
-            --repo "$GITHUB_REPOSITORY" \
-            --title "Termul POD Video $RELEASE_TAG" \
-            --notes "Automated unsigned Android APK build."
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            RELEASE_TAG="$GITHUB_REF_NAME"
+          else
+            RELEASE_TAG="build-$GITHUB_RUN_NUMBER"
+          fi
 
-      - name: Report APK location
-        run: echo "APK: build/app/outputs/flutter-apk/app-release.apk"
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" build/app/outputs/flutter-apk/app-release.apk --clobber
+          else
+            gh release create "$RELEASE_TAG" build/app/outputs/flutter-apk/app-release.apk \
+              --title "Termul POD Video $RELEASE_TAG" \
+              --notes "Automated APK build from commit $GITHUB_SHA. No permanent keystore is used."
+          fi

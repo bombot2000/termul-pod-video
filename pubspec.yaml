@@ -4,18 +4,24 @@ publish_to: "none"
 version: 0.1.0+1
 
 environment:
-  sdk: ">=3.5.0 <4.0.0"
+  sdk: ">=3.12.0 <4.0.0"
+  flutter: ">=3.44.0"
 
 dependencies:
   flutter:
     sdk: flutter
+  material_ui: ^1.11.0
   cupertino_icons: ^1.0.8
-  camera: ^0.11.2+1
+  camera: ^0.12.2
   geolocator: ^14.0.2
   geocoding: ^4.0.0
   path_provider: ^2.1.5
   shared_preferences: ^2.5.3
   intl: ^0.20.2
+  image: ^4.12.0
+  watermark_kit: ^2.2.0
+  gal: ^3.0.0
+  video_player: ^2.14.1
 
 dev_dependencies:
   flutter_test:
