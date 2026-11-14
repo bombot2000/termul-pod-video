@@ -58,7 +58,8 @@ def configure_manifest() -> None:
     if not re.search(LEGACY_STORAGE_PATTERN, source):
         additions.append(LEGACY_STORAGE_PERMISSION)
 
-    if LEGACY_STORAGE_PERMISSION.strip() in source and TOOLS_NAMESPACE not in source:
+    if (LEGACY_STORAGE_PERMISSION.strip() in source or
+            LEGACY_STORAGE_PERMISSION in additions) and TOOLS_NAMESPACE not in source:
         source, count = re.subn(
             r"(<manifest\b[^>]*)(>)",
             lambda match: f"{match.group(1)} {TOOLS_NAMESPACE}{match.group(2)}",
