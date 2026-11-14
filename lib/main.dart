@@ -108,7 +108,7 @@ class _PodHomePageState extends State<PodHomePage> {
             onPressed: () => _showInfo(
               context,
               'Penyimpanan offline',
-              'Foto dan video disimpan di penyimpanan internal aplikasi. Data tetap tersedia tanpa koneksi internet.',
+              'Foto dan video tersimpan di riwayat lokal aplikasi serta disalin ke album Galeri Termul POD. Penyimpanan lokal tetap tersedia tanpa internet.',
             ),
             icon: const Icon(Icons.cloud_off_outlined),
           ),
@@ -536,7 +536,7 @@ class _HistoryPageState extends State<_HistoryPage> {
                 title: Text(isVideo ? 'Video POD' : 'Foto POD',
                     style: const TextStyle(fontWeight: FontWeight.w700)),
                 subtitle: Text(
-                  '${DateFormat('dd MMM yyyy • HH:mm').format(record.createdAt)}\n$addressLine\n$coordinates\n$watermarkStatus',
+                  '${DateFormat('dd MMM yyyy • HH:mm').format(record.createdAt)}\n$addressLine\n$coordinates\n$watermarkStatus${record.gallerySaved == true ? '\nTersimpan di Galeri' : record.gallerySaved == false ? '\nBelum tersimpan di Galeri' : ''}',
                 ),
                 isThreeLine: true,
                 trailing: Row(
@@ -596,7 +596,7 @@ class _SettingsPlaceholder extends StatelessWidget {
               child: ListTile(
                   leading: Icon(Icons.storage_outlined),
                   title: Text('Penyimpanan'),
-                  subtitle: Text('Foto dan video disimpan di penyimpanan internal aplikasi. Ekspor dan backup belum tersedia.'))),
+                  subtitle: Text('Foto dan video tersimpan di perangkat dan diekspor ke album Galeri Termul POD. Backup cloud belum tersedia.'))),
           Card(
               child: ListTile(
                   leading: Icon(Icons.info_outline),
