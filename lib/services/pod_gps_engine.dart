@@ -108,6 +108,12 @@ class PodGpsEngine {
       );
     }
 
+    // Do not carry an old velocity estimate across a long GPS interruption.
+    if (lastAccepted != null &&
+        timestamp.difference(lastAccepted) > config.windowMaxAge) {
+      reset();
+    }
+
     final estLat = _estLat;
     final estLon = _estLon;
     if (estLat != null && estLon != null) {
