@@ -88,7 +88,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
         return exception.description ?? 'Kamera tidak ditemukan.';
       default:
         return exception.description ??
-            'Terjadi masalah saat membuka kamera (__DOLLAR__{exception.code}).';
+            'Terjadi masalah saat membuka kamera (${exception.code}).';
     }
   }
 
@@ -168,7 +168,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
       if (!mounted) { return; }
       Navigator.of(context).pop<PodMediaRecord>(record);
     } catch (exception) {
-      _showMessage('Gagal menyimpan dokumentasi: __DOLLAR__exception');
+      _showMessage('Gagal menyimpan dokumentasi: $exception');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
