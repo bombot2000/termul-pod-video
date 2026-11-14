@@ -9,6 +9,8 @@ class PodMediaRecord {
     this.address,
     this.watermarkApplied,
     this.gallerySaved,
+    this.locationMocked,
+    this.locationAgeSeconds,
   });
 
   final String path;
@@ -21,6 +23,26 @@ class PodMediaRecord {
   final bool? watermarkApplied;
   final bool? gallerySaved;
 
+  /// True when Android flagged the position as coming from a mock provider.
+  final bool? locationMocked;
+
+  /// Age of the GPS fix, in seconds, at the moment it was attached.
+  final int? locationAgeSeconds;
+
+  PodMediaRecord copyWith({bool? gallerySaved}) => PodMediaRecord(
+        path: path,
+        type: type,
+        createdAt: createdAt,
+        latitude: latitude,
+        longitude: longitude,
+        accuracy: accuracy,
+        address: address,
+        watermarkApplied: watermarkApplied,
+        gallerySaved: gallerySaved ?? this.gallerySaved,
+        locationMocked: locationMocked,
+        locationAgeSeconds: locationAgeSeconds,
+      );
+
   Map<String, Object?> toJson() => {
         'path': path,
         'type': type,
@@ -31,6 +53,8 @@ class PodMediaRecord {
         'address': address,
         'watermarkApplied': watermarkApplied,
         'gallerySaved': gallerySaved,
+        'locationMocked': locationMocked,
+        'locationAgeSeconds': locationAgeSeconds,
       };
 
   factory PodMediaRecord.fromJson(Map<String, dynamic> json) =>
@@ -45,5 +69,7 @@ class PodMediaRecord {
         address: json['address'] as String?,
         watermarkApplied: json['watermarkApplied'] as bool?,
         gallerySaved: json['gallerySaved'] as bool?,
+        locationMocked: json['locationMocked'] as bool?,
+        locationAgeSeconds: (json['locationAgeSeconds'] as num?)?.toInt(),
       );
 }

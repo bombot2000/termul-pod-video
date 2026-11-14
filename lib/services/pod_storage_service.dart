@@ -46,6 +46,9 @@ class PodStorageService {
     double? accuracy,
     String? address,
     bool? watermarkApplied,
+    bool? locationMocked,
+    int? locationAgeSeconds,
+    bool moveSource = false,
   }) async {
     final source = File(sourcePath);
     if (!await source.exists()) {
@@ -73,7 +76,20 @@ class PodStorageService {
       suffix++;
     }
 
-    await source.copy(destination.path);
+    // With [moveSource] the capture is renamed into place instead of being
+    // copied, so no duplicate is left behind in the cache directory.
+    var moved = false;
+    if (moveSource) {
+      try {
+        await source.rename(destination.path);
+        moved = true;
+      } on FileSystemException {
+        // Different filesystem: fall back to copy and delete after indexing.
+        await source.copy(destination.path);
+      }
+    } else {
+      await source.copy(destination.path);
+    }
     final record = PodMediaRecord(
       path: destination.path,
       type: type,
@@ -83,6 +99,8 @@ class PodStorageService {
       accuracy: accuracy,
       address: address,
       watermarkApplied: watermarkApplied,
+      locationMocked: locationMocked,
+      locationAgeSeconds: locationAgeSeconds,
     );
 
     try {
@@ -99,11 +117,26 @@ class PodStorageService {
         );
       }
     } catch (_) {
-      // Do not leave an unindexed media file after a metadata write failure.
-      if (await destination.exists()) {
+      if (moved) {
+        // Put the capture back: it was the only copy, so never delete it.
+        try {
+          await destination.rename(source.path);
+        } on FileSystemException {
+          // Keep it in pod_media rather than lose the evidence.
+        }
+      } else if (await destination.exists()) {
+        // Do not leave an unindexed media file after a metadata write failure.
         await destination.delete();
       }
       rethrow;
+    }
+
+    if (moveSource && !moved && await source.exists()) {
+      try {
+        await source.delete();
+      } on FileSystemException {
+        // Best effort; the indexed copy is safe.
+      }
     }
 
     return record;
@@ -119,17 +152,7 @@ class PodStorageService {
     if (index < 0) {
       throw const FileSystemException('Dokumentasi tidak ditemukan di riwayat.');
     }
-    final updated = PodMediaRecord(
-      path: record.path,
-      type: record.type,
-      createdAt: record.createdAt,
-      latitude: record.latitude,
-      longitude: record.longitude,
-      accuracy: record.accuracy,
-      address: record.address,
-      watermarkApplied: record.watermarkApplied,
-      gallerySaved: saved,
-    );
+    final updated = record.copyWith(gallerySaved: saved);
     records[index] = updated;
     final persisted = await preferences.setStringList(
       _recordsKey,
