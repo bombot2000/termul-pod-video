@@ -13,4 +13,18 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Belum ada dokumentasi'), findsOneWidget);
   });
+
+  testWidgets('unimplemented features are labelled and open a notice', (tester) async {
+    await tester.pumpWidget(const TermulPodApp());
+
+    expect(find.text('Segera'), findsWidgets);
+
+    await tester.tap(find.text('Mulai dokumentasi'));
+    await tester.pumpAndSettle();
+    expect(find.text('Kamera POD'), findsOneWidget);
+
+    await tester.tap(find.text('Mengerti'));
+    await tester.pumpAndSettle();
+    expect(find.text('Kamera POD'), findsNothing);
+  });
 }
