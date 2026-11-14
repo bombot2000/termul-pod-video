@@ -36,6 +36,9 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
   final CachedAddressResolver _addressResolver = CachedAddressResolver();
   Future<PodLocationFix?>? _recordingFix;
   Future<String?>? _recordingAddress;
+  bool _appPaused = false;
+  bool _startingRecording = false;
+  int _cameraInitGeneration = 0;
 
   @override
   void initState() {
@@ -46,6 +49,8 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
   }
 
   Future<void> _initializeCamera() async {
+    if (_appPaused) return;
+    final generation = ++_cameraInitGeneration;
     if (mounted) {
       setState(() {
         _initializing = true;
@@ -54,6 +59,9 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
     }
     try {
       final cameras = await availableCameras();
+      if (!mounted || _appPaused || generation != _cameraInitGeneration) {
+        return;
+      }
       if (cameras.isEmpty) {
         throw CameraException('no_camera', 'Kamera tidak ditemukan.');
       }
@@ -67,7 +75,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
         enableAudio: true,
       );
       await controller.initialize();
-      if (!mounted) {
+      if (!mounted || _appPaused || generation != _cameraInitGeneration) {
         await controller.dispose();
         return;
       }
@@ -79,14 +87,14 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
       // permission dialogs never stack, and GPS is warm before the shutter.
       unawaited(_locationTracker.start());
     } on CameraException catch (exception) {
-      if (mounted) {
+      if (mounted && !_appPaused && generation == _cameraInitGeneration) {
         setState(() {
           _error = _cameraErrorMessage(exception);
           _initializing = false;
         });
       }
     } catch (exception) {
-      if (mounted) {
+      if (mounted && !_appPaused && generation == _cameraInitGeneration) {
         setState(() {
           _error = 'Kamera tidak dapat dibuka: $exception';
           _initializing = false;
@@ -112,31 +120,52 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // `inactive` also fires for permission dialogs and the notification
-    // shade, so only a real move to the background releases the camera.
+    // Android may emit inactive for permission dialogs and the notification
+    // shade. Keep the camera alive until the app is actually backgrounded.
     if (state == AppLifecycleState.paused) {
+      _appPaused = true;
+      // Invalidate any camera initialization still waiting on the plugin.
+      // Its eventual result must be disposed rather than attached in background.
+      _cameraInitGeneration++;
+      _initializing = false;
       unawaited(_locationTracker.stop());
+      // Do not dispose a controller while a camera plugin operation or the
+      // capture/save pipeline still owns it. The operation releases it later.
+      if (_saving || _startingRecording) return;
       final controller = _controller;
       if (_recording && !_saving && controller != null &&
           controller.value.isRecordingVideo) {
-        // Finalize an active clip before releasing the camera. This prevents
-        // Android lifecycle changes from silently discarding the recording.
-        unawaited(_capture());
+        // Stop and persist the active clip before releasing the camera.
+        // The helper also handles returning to the foreground mid-save.
+        unawaited(_finishRecordingAndReleaseCamera(controller));
         return;
       }
       _controller = null;
-      if (controller != null) {
-        unawaited(controller.dispose());
-      }
+      if (controller != null) unawaited(controller.dispose());
       return;
     }
 
-    if (state == AppLifecycleState.resumed &&
-        _controller == null &&
-        !_initializing &&
-        !_saving) {
-      // Do not return early when _controller is null: that is the expected
-      // state after releasing the camera while the app was in the background.
+    if (state == AppLifecycleState.resumed) {
+      _appPaused = false;
+      if (_controller == null && !_initializing && !_saving) {
+        unawaited(_initializeCamera());
+      }
+    }
+  }
+
+  Future<void> _finishRecordingAndReleaseCamera(
+    CameraController controller,
+  ) async {
+    await _capture();
+    if (!identical(_controller, controller)) return;
+
+    _controller = null;
+    await controller.dispose();
+
+    // The app may have resumed while the clip was being finalized. In that
+    // case, reopen the camera now instead of leaving the preview permanently
+    // blank after the delayed dispose.
+    if (mounted && !_appPaused && !_saving) {
       unawaited(_initializeCamera());
     }
   }
@@ -162,14 +191,27 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
       // returns a fresh live fix immediately, or waits briefly in the
       // background while the clip is being recorded.
       final fixFuture = _locationTracker.acquire();
+      _startingRecording = true;
       try {
         await controller.startVideoRecording();
         _recordingStartedAt = DateTime.now();
         _recordingFix = fixFuture;
         _recordingAddress = fixFuture.then(_addressFor);
         if (mounted) { setState(() => _recording = true); }
+        if (_appPaused) {
+          // The pause callback may have arrived while startVideoRecording()
+          // was pending. Finalize the clip now that recording has actually
+          // started, rather than disposing the active camera underneath it.
+          unawaited(_finishRecordingAndReleaseCamera(controller));
+        }
       } on CameraException catch (exception) {
         _showMessage(_cameraErrorMessage(exception));
+      } finally {
+        _startingRecording = false;
+        if (_appPaused && !_recording && identical(_controller, controller)) {
+          _controller = null;
+          await controller.dispose();
+        }
       }
       return;
     }
@@ -295,6 +337,13 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
       _showMessage('Gagal menyimpan dokumentasi: $exception');
     } finally {
       if (mounted) { setState(() => _saving = false); }
+      if (_appPaused) {
+        // Lifecycle pause deferred disposal while capture/save was in flight.
+        // Release only after the media has been safely persisted (or failed).
+        final pausedController = _controller;
+        _controller = null;
+        if (pausedController != null) await pausedController.dispose();
+      }
     }
   }
 
@@ -309,7 +358,9 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _locationTracker.dispose();
-    _controller?.dispose();
+    final controller = _controller;
+    _controller = null;
+    if (controller != null) unawaited(controller.dispose());
     super.dispose();
   }
 
