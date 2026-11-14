@@ -1,4 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
+import 'models/pod_media_record.dart';
+import 'screens/camera_capture_screen.dart';
+import 'screens/media_preview_screen.dart';
+import 'services/pod_storage_service.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -46,8 +52,15 @@ class PodHomePage extends StatefulWidget {
 
 class _PodHomePageState extends State<PodHomePage> {
   int _selectedIndex = 0;
-
+  final _historyKey = GlobalKey<_HistoryPageState>();
   static const _titles = ['Dokumentasi POD', 'Riwayat', 'Pengaturan'];
+
+  Future<void> _openCamera() async {
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => const CameraCaptureScreen()),
+    );
+    _historyKey.currentState?.reload();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -63,7 +76,14 @@ class _PodHomePageState extends State<PodHomePage> {
         actions: [
           IconButton(
             tooltip: 'Status penyimpanan',
-            onPressed: () => _showInfo(context, 'Mode offline aktif', 'Dokumentasi disiapkan agar dapat disimpan secara lokal saat jaringan tidak tersedia.'),
+            onPressed: () => showDialog<void>(
+              context: context,
+              builder: (dialogContext) => AlertDialog(
+                title: const Text('Mode offline aktif'),
+                content: const Text('Foto dan video disimpan di penyimpanan internal aplikasi. Riwayat tetap tersedia tanpa koneksi internet.'),
+                actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Tutup'))],
+              ),
+            ),
             icon: const Icon(Icons.cloud_off_outlined),
           ),
           const SizedBox(width: 8),
@@ -71,11 +91,18 @@ class _PodHomePageState extends State<PodHomePage> {
       ),
       body: IndexedStack(
         index: _selectedIndex,
-        children: const [_CaptureDashboard(), _HistoryPlaceholder(), _SettingsPlaceholder()],
+        children: [
+          _CaptureDashboard(onOpenCamera: _openCamera),
+          _HistoryPage(key: _historyKey),
+          const _SettingsPage(),
+        ],
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
-        onDestinationSelected: (index) => setState(() => _selectedIndex = index),
+        onDestinationSelected: (index) {
+          setState(() => _selectedIndex = index);
+          if (index == 1) _historyKey.currentState?.reload();
+        },
         destinations: const [
           NavigationDestination(icon: Icon(Icons.camera_alt_outlined), selectedIcon: Icon(Icons.camera_alt), label: 'Dokumentasi'),
           NavigationDestination(icon: Icon(Icons.photo_library_outlined), selectedIcon: Icon(Icons.photo_library), label: 'Riwayat'),
@@ -84,21 +111,11 @@ class _PodHomePageState extends State<PodHomePage> {
       ),
     );
   }
-
-  void _showInfo(BuildContext context, String title, String message) {
-    showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: Text(message),
-        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Tutup'))],
-      ),
-    );
-  }
 }
 
 class _CaptureDashboard extends StatelessWidget {
-  const _CaptureDashboard();
+  const _CaptureDashboard({required this.onOpenCamera});
+  final VoidCallback onOpenCamera;
 
   @override
   Widget build(BuildContext context) {
@@ -120,15 +137,14 @@ class _CaptureDashboard extends StatelessWidget {
                 Text('PROOF OF DELIVERY', style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.4)),
               ]),
               const SizedBox(height: 18),
-              const Text('Dokumentasikan
-setiap pengiriman.', style: TextStyle(color: Colors.white, fontSize: 27, height: 1.15, fontWeight: FontWeight.w800)),
+              const Text('Dokumentasikan\nsetiap pengiriman.', style: TextStyle(color: Colors.white, fontSize: 27, height: 1.15, fontWeight: FontWeight.w800)),
               const SizedBox(height: 10),
-              const Text('Foto dan video dengan informasi waktu serta lokasi.', style: TextStyle(color: Colors.white70, height: 1.4)),
+              const Text('Ambil foto atau video bukti serah terima dan simpan secara lokal.', style: TextStyle(color: Colors.white70, height: 1.4)),
               const SizedBox(height: 22),
               SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
-                  onPressed: () => _showComingSoon(context, 'Kamera POD'),
+                  onPressed: onOpenCamera,
                   icon: const Icon(Icons.camera_alt),
                   label: const Text('Mulai dokumentasi'),
                   style: FilledButton.styleFrom(backgroundColor: Colors.white, foregroundColor: const Color(0xFF125D50), padding: const EdgeInsets.symmetric(vertical: 15)),
@@ -142,30 +158,18 @@ setiap pengiriman.', style: TextStyle(color: Colors.white, fontSize: 27, height:
         const SizedBox(height: 12),
         Row(
           children: [
-            Expanded(child: _ActionTile(icon: Icons.photo_camera_outlined, title: 'Foto POD', subtitle: 'Bukti serah terima', onTap: () => _showComingSoon(context, 'Kamera foto'))),
+            Expanded(child: _ActionTile(icon: Icons.photo_camera_outlined, title: 'Foto POD', subtitle: 'Bukti serah terima', onTap: onOpenCamera)),
             const SizedBox(width: 12),
-            Expanded(child: _ActionTile(icon: Icons.videocam_outlined, title: 'Video POD', subtitle: 'Rekaman pengiriman', onTap: () => _showComingSoon(context, 'Kamera video'))),
+            Expanded(child: _ActionTile(icon: Icons.videocam_outlined, title: 'Video POD', subtitle: 'Rekaman pengiriman', onTap: onOpenCamera)),
           ],
         ),
         const SizedBox(height: 22),
         Text('Informasi dokumentasi', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
         const SizedBox(height: 12),
-        const _InfoRow(icon: Icons.schedule, title: 'Tanggal dan waktu', detail: 'Timestamp otomatis'),
-        const _InfoRow(icon: Icons.location_on_outlined, title: 'Lokasi GPS', detail: 'Koordinat dan akurasi lokasi'),
-        const _InfoRow(icon: Icons.layers_outlined, title: 'Watermark', detail: 'Template yang dapat disesuaikan'),
-        const _InfoRow(icon: Icons.offline_pin_outlined, title: 'Penyimpanan lokal', detail: 'Siap digunakan tanpa koneksi internet'),
+        const _InfoRow(icon: Icons.schedule, title: 'Tanggal dan waktu', detail: 'Waktu pengambilan dicatat otomatis'),
+        const _InfoRow(icon: Icons.photo_camera_outlined, title: 'Foto dan video', detail: 'Disimpan di penyimpanan internal aplikasi'),
+        const _InfoRow(icon: Icons.offline_pin_outlined, title: 'Penyimpanan lokal', detail: 'Riwayat dapat dibuka tanpa internet'),
       ],
-    );
-  }
-
-  void _showComingSoon(BuildContext context, String feature) {
-    showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(feature),
-        content: const Text('Modul ini sedang disiapkan. Fondasi antarmuka sudah tersedia; integrasi kamera, GPS, dan watermark akan ditambahkan bertahap.'),
-        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Mengerti'))],
-      ),
     );
   }
 }
@@ -212,38 +216,92 @@ class _InfoRow extends StatelessWidget {
         leading: CircleAvatar(backgroundColor: const Color(0xFFE7F3EF), child: Icon(icon, color: const Color(0xFF146C5A), size: 20)),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
         subtitle: Text(detail, style: const TextStyle(fontSize: 12)),
-        trailing: const Icon(Icons.check_circle_outline, color: Color(0xFF27836D), size: 20),
       )),
     );
   }
 }
 
-class _HistoryPlaceholder extends StatelessWidget {
-  const _HistoryPlaceholder();
+class _HistoryPage extends StatefulWidget {
+  const _HistoryPage({super.key});
 
   @override
-  Widget build(BuildContext context) => const Center(
-    child: Padding(
-      padding: EdgeInsets.all(32),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Icon(Icons.photo_library_outlined, size: 56, color: Color(0xFF8A9B94)),
-        SizedBox(height: 14),
-        Text('Belum ada dokumentasi', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-        SizedBox(height: 6),
-        Text('Hasil foto dan video POD akan tampil di sini.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
-      ]),
-    ),
-  );
+  State<_HistoryPage> createState() => _HistoryPageState();
 }
 
-class _SettingsPlaceholder extends StatelessWidget {
-  const _SettingsPlaceholder();
+class _HistoryPageState extends State<_HistoryPage> {
+  final _storage = PodStorageService();
+  List<PodMediaRecord> _records = const [];
+  bool _loading = true;
+
+  Future<void> reload() async {
+    setState(() => _loading = true);
+    final records = await _storage.loadRecords();
+    if (!mounted) return;
+    setState(() {
+      _records = records;
+      _loading = false;
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    reload();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_records.isEmpty) {
+      return const Center(child: Padding(
+        padding: EdgeInsets.all(32),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.photo_library_outlined, size: 56, color: Color(0xFF8A9B94)),
+          SizedBox(height: 14),
+          Text('Belum ada dokumentasi', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+          SizedBox(height: 6),
+          Text('Foto dan video POD yang diambil akan tampil di sini.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+        ]),
+      ));
+    }
+    return RefreshIndicator(
+      onRefresh: reload,
+      child: ListView.separated(
+        padding: const EdgeInsets.all(16),
+        itemCount: _records.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        itemBuilder: (context, index) {
+          final record = _records[index];
+          return Card(
+            child: ListTile(
+              leading: Container(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(color: const Color(0xFFE7F3EF), borderRadius: BorderRadius.circular(12)),
+                child: Icon(record.isVideo ? Icons.videocam : Icons.image, color: const Color(0xFF146C5A), size: 28),
+              ),
+              title: Text(record.isVideo ? 'Video POD' : 'Foto POD', style: const TextStyle(fontWeight: FontWeight.w700)),
+              subtitle: Text(DateFormat('dd/MM/yyyy HH:mm:ss').format(record.createdAt.toLocal())),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.push(context, MaterialPageRoute(
+                builder: (_) => MediaPreviewScreen(record: record),
+              )),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _SettingsPage extends StatelessWidget {
+  const _SettingsPage();
 
   @override
   Widget build(BuildContext context) => ListView(padding: const EdgeInsets.all(20), children: const [
-    Card(child: ListTile(leading: Icon(Icons.text_fields), title: Text('Template watermark'), subtitle: Text('Pengaturan desain watermark akan tersedia pada tahap berikutnya.'))),
-    Card(child: ListTile(leading: Icon(Icons.gps_fixed), title: Text('Informasi GPS'), subtitle: Text('Pengaturan akurasi dan tampilan lokasi.'))),
-    Card(child: ListTile(leading: Icon(Icons.storage_outlined), title: Text('Penyimpanan'), subtitle: Text('Lokasi penyimpanan dokumentasi lokal.'))),
+    Card(child: ListTile(leading: Icon(Icons.text_fields), title: Text('Template watermark'), subtitle: Text('Pengaturan watermark akan ditambahkan pada tahap berikutnya.'))),
+    Card(child: ListTile(leading: Icon(Icons.gps_fixed), title: Text('Informasi GPS'), subtitle: Text('Integrasi GPS dan alamat sedang dalam tahap berikutnya.'))),
+    Card(child: ListTile(leading: Icon(Icons.storage_outlined), title: Text('Penyimpanan'), subtitle: Text('Foto dan video tersimpan di folder privat aplikasi.'))),
     Card(child: ListTile(leading: Icon(Icons.info_outline), title: Text('Tentang aplikasi'), subtitle: Text('Termul POD Video · 0.1.0'))),
   ]);
 }
