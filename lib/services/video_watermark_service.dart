@@ -127,7 +127,7 @@ class VideoWatermarkOverlay {
         textDirection: ui.TextDirection.ltr,
         maxLines: maxLines,
         ellipsis: '…',
-      )..layout(maxWidth: width - horizontalPadding * 2);
+      )..layout(maxWidth: panelWidth - horizontalPadding * 2);
       painter.paint(canvas, ui.Offset(horizontalPadding, panelTop + top));
       painter.dispose();
     }
