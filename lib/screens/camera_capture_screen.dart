@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:camera/camera.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
 
@@ -31,16 +31,16 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() => _clock = DateTime.now());
+      if (mounted) { setState(() => _clock = DateTime.now()); }
     });
     _initializeCamera();
   }
 
   Future<void> _initializeCamera() async {
-    if (mounted) setState(() {
+    if (mounted) { setState(() {
       _initializing = true;
       _error = null;
-    });
+    }); }
     try {
       final cameras = await availableCameras();
       if (cameras.isEmpty) {
@@ -63,15 +63,15 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
       setState(() {
         _controller = controller;
         _initializing = false;
-      });
+      }); }
     } on CameraException catch (exception) {
       if (mounted) setState(() {
         _error = _cameraErrorMessage(exception);
         _initializing = false;
-      });
+      }); }
     } catch (exception) {
       if (mounted) setState(() {
-        _error = 'Kamera tidak dapat dibuka: ' + exception.toString();
+        _error = 'Kamera tidak dapat dibuka: $exception';
         _initializing = false;
       });
     }
@@ -88,14 +88,14 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
         return exception.description ?? 'Kamera tidak ditemukan.';
       default:
         return exception.description ??
-            'Terjadi masalah saat membuka kamera (' + exception.code + ').';
+            'Terjadi masalah saat membuka kamera (__DOLLAR__{exception.code}).';
     }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     final controller = _controller;
-    if (controller == null || !controller.value.isInitialized) return;
+    if (controller == null || !controller.value.isInitialized) { return; }
     if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused) {
       unawaited(controller.dispose());
@@ -107,7 +107,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
 
   Future<Position?> _readPosition() async {
     try {
-      if (!await Geolocator.isLocationServiceEnabled()) return null;
+      if (!await Geolocator.isLocationServiceEnabled()) { return null; }
       var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
@@ -149,7 +149,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
       final type = _videoMode ? 'video' : 'photo';
       final XFile media;
       if (_videoMode) {
-        if (!controller.value.isRecordingVideo) return;
+        if (!controller.value.isRecordingVideo) { return; }
         media = await controller.stopVideoRecording();
         if (mounted) setState(() => _recording = false);
       } else {
@@ -165,17 +165,17 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
         longitude: position?.longitude,
         accuracy: position?.accuracy,
       );
-      if (!mounted) return;
+      if (!mounted) { return; }
       Navigator.of(context).pop<PodMediaRecord>(record);
     } catch (exception) {
-      _showMessage('Gagal menyimpan dokumentasi: ' + exception.toString());
+      _showMessage('Gagal menyimpan dokumentasi: __DOLLAR__exception');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
   }
 
   void _showMessage(String message) {
-    if (!mounted) return;
+    if (!mounted) { return; }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
     );
