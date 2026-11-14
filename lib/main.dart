@@ -383,8 +383,7 @@ class _HistoryPageState extends State<_HistoryPage> {
         }
         if (snapshot.hasError) {
           return Center(
-              child: Text('Gagal membaca riwayat: ' +
-                  snapshot.error.toString()));
+              child: Text('Gagal membaca riwayat: ${snapshot.error}'));
         }
         final records = snapshot.data ?? const <PodMediaRecord>[];
         if (records.isEmpty) {
@@ -419,9 +418,7 @@ class _HistoryPageState extends State<_HistoryPage> {
             final file = File(record.path);
             final location = record.latitude == null
                 ? 'Lokasi GPS tidak tersedia'
-                : record.latitude!.toStringAsFixed(6) +
-                    ', ' +
-                    record.longitude!.toStringAsFixed(6);
+                : '${record.latitude!.toStringAsFixed(6)}, ${record.longitude!.toStringAsFixed(6)}';
             return Card(
               child: ListTile(
                 contentPadding:
@@ -450,9 +447,7 @@ class _HistoryPageState extends State<_HistoryPage> {
                 title: Text(isVideo ? 'Video POD' : 'Foto POD',
                     style: const TextStyle(fontWeight: FontWeight.w700)),
                 subtitle: Text(
-                  DateFormat('dd MMM yyyy • HH:mm').format(record.createdAt) +
-                      '\n' +
-                      location,
+                  ${DateFormat('dd MMM yyyy • HH:mm').format(record.createdAt)}\n$location,
                 ),
                 isThreeLine: true,
                 trailing: IconButton(
