@@ -6,7 +6,11 @@ A separate Flutter Android application for photo/video proof of delivery (POD). 
 
 - Material 3 dashboard with Documentation, History, and Settings navigation.
 - Separate entry points for photo and video POD workflows.
-- Planned offline-first storage and timestamp/GPS watermark modules; these features are not implemented yet.
+- Working photo/video camera preview and capture with back-camera preference.
+- Capture timestamp and optional GPS coordinates/accuracy are recorded as metadata.
+- Photo/video files are copied into app-private local storage and indexed for the History screen.
+- History displays saved photos and metadata and supports deleting a selected record.
+- Watermark rendering and address reverse-geocoding remain planned; the camera preview timestamp is not yet burned into media.
 - GitHub Actions runs static analysis, widget tests, and an Android release-mode APK build.
 - A successful push build publishes the APK to a GitHub Release.
 
@@ -49,8 +53,8 @@ Commit the generated `android/` directory and `.metadata` only if you choose to 
 
 ## Roadmap
 
-1. Camera capture and lifecycle/permission handling.
-2. GPS acquisition, accuracy display, and reverse geocoding.
-3. Photo/video watermark renderer with selectable layouts.
-4. Local media index, history, and safe cleanup.
-5. Offline tests and device-level verification.
+1. Improve GPS status feedback and add reverse geocoded address metadata.
+2. Implement watermark renderer and burn timestamp/GPS/address into photo files.
+3. Add configurable watermark templates and video overlay/export strategy.
+4. Add media playback, sharing/export, and storage management.
+5. Complete offline tests and physical-device verification.
