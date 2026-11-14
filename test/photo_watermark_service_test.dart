@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:termul_pod_video/services/photo_watermark_service.dart';
 
 void main() {
@@ -9,6 +10,7 @@ void main() {
   late File sourceFile;
 
   setUp(() async {
+    SharedPreferences.setMockInitialValues({});
     temporaryDirectory = await Directory.systemTemp.createTemp('pod_watermark_test_');
     final source = img.Image(width: 640, height: 480);
     img.fill(source, color: img.ColorRgb8(80, 140, 190));
