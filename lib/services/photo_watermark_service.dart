@@ -73,7 +73,8 @@ void _renderWatermark({
     final maxChars =
         ((photo.width - padding * 4) / (font.lineHeight * 0.55))
             .floor()
-            .clamp(18, 100);
+            .clamp(18, 100)
+            .toInt();
     lines.addAll(_wrapAddress('Alamat  ${address.trim()}', maxChars));
   }
   final lineGap = (font.lineHeight * 0.35).round();
