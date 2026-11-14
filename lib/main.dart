@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:intl/intl.dart';
@@ -7,11 +8,15 @@ import 'models/pod_media_record.dart';
 import 'screens/camera_capture_screen.dart';
 import 'screens/media_preview_screen.dart';
 import 'services/gallery_media_service.dart';
+import 'services/pod_location_tracker.dart';
 import 'services/pod_storage_service.dart';
+import 'services/temp_media_cleanup.dart';
 import 'screens/watermark_settings_section.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  // Remove stale capture leftovers from the cache; never blocks startup.
+  unawaited(TempMediaCleanup().sweep());
   runApp(const TermulPodApp());
 }
 
@@ -508,6 +513,12 @@ class _HistoryPageState extends State<_HistoryPage> {
                     : isVideo
                         ? 'Watermark belum diterapkan pada rekaman lama'
                         : 'Status watermark tidak tercatat';
+            final locationNote = record.locationMocked == true
+                ? '\nPeringatan: lokasi terindikasi palsu (mock)'
+                : (record.accuracy != null &&
+                        record.accuracy! > podPoorAccuracyMeters)
+                    ? '\nAkurasi GPS lemah (\u00b1${record.accuracy!.round()} m)'
+                    : '';
             return Card(
               child: ListTile(
                 onTap: () => _openPreview(record),
@@ -537,7 +548,7 @@ class _HistoryPageState extends State<_HistoryPage> {
                 title: Text(isVideo ? 'Video POD' : 'Foto POD',
                     style: const TextStyle(fontWeight: FontWeight.w700)),
                 subtitle: Text(
-                  '${DateFormat('dd MMM yyyy • HH:mm').format(record.createdAt)}\n$addressLine\n$coordinates\n$watermarkStatus${record.gallerySaved == true ? '\nTersimpan di Galeri' : record.gallerySaved == false ? '\nBelum tersimpan di Galeri' : ''}',
+                  '${DateFormat('dd MMM yyyy • HH:mm').format(record.createdAt)}\n$addressLine\n$coordinates\n$watermarkStatus$locationNote${record.gallerySaved == true ? '\nTersimpan di Galeri' : record.gallerySaved == false ? '\nBelum tersimpan di Galeri' : ''}',
                 ),
                 isThreeLine: true,
                 trailing: Row(

@@ -11,13 +11,16 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   FLUTTER_VERSION: "3.50.0"
 
 jobs:
   build:
+    # A PR from a branch in this repo is already built by its push run.
+    # Fork PRs still build (read-only token, no release step).
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -64,23 +67,30 @@ jobs:
         if: success() && github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
+          APK: build/app/outputs/flutter-apk/app-release.apk
         run: |
-          REMOTE_SHA="$(git ls-remote origin "$GITHUB_REF" | cut -f1)"
-          if [[ "$REMOTE_SHA" != "$GITHUB_SHA" ]]; then
-            echo "Skipping release: a newer commit is already available on this ref."
+          # Do not publish a stale build if a newer commit already landed.
+          # Fail open: if the API call fails, publish rather than skip silently.
+          REMOTE_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$GITHUB_REF_NAME" --jq '.object.sha' 2>/dev/null || true)"
+          if [ -z "$REMOTE_SHA" ]; then
+            echo "::warning::Could not read the remote branch head; publishing anyway."
+          elif [ "$REMOTE_SHA" != "$GITHUB_SHA" ]; then
+            echo "Skipping release: a newer commit is already available on $GITHUB_REF_NAME."
             exit 0
           fi
 
-          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
-            RELEASE_TAG="$GITHUB_REF_NAME"
-          else
-            RELEASE_TAG="build-$GITHUB_RUN_NUMBER"
-          fi
+          RELEASE_TAG="build-$GITHUB_RUN_NUMBER"
 
-          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release upload "$RELEASE_TAG" build/app/outputs/flutter-apk/app-release.apk --clobber
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "$APK" --clobber --repo "$GITHUB_REPOSITORY"
           else
-            gh release create "$RELEASE_TAG" build/app/outputs/flutter-apk/app-release.apk \
+            # --target pins the tag to the commit that was built. Without it,
+            # a new tag is created at the default branch head, which is the
+            # wrong commit for builds from feature branches.
+            gh release create "$RELEASE_TAG" "$APK" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --prerelease \
               --title "Termul POD Video $RELEASE_TAG" \
-              --notes "Automated APK build from commit $GITHUB_SHA. No permanent keystore is used."
+              --notes "Automated APK build from $GITHUB_REF_NAME at commit $GITHUB_SHA. No permanent keystore is used (debug-signed, for internal testing)."
           fi
