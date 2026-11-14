@@ -32,7 +32,7 @@ void main() {
     await tester.tap(find.byTooltip('Status penyimpanan'));
     await tester.pumpAndSettle();
     expect(find.text('Penyimpanan offline'), findsOneWidget);
-    expect(find.textContaining('penyimpanan internal aplikasi'), findsOneWidget);
+    expect(find.textContaining('album Galeri Termul POD'), findsOneWidget);
     await tester.tap(find.text('Tutup'));
     await tester.pumpAndSettle();
 
