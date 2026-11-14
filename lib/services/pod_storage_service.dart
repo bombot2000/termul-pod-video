@@ -6,8 +6,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/pod_media_record.dart';
 
+typedef DocumentsDirectoryProvider = Future<Directory> Function();
+
 class PodStorageService {
+  PodStorageService({DocumentsDirectoryProvider? documentsDirectoryProvider})
+      : _documentsDirectoryProvider =
+            documentsDirectoryProvider ?? getApplicationDocumentsDirectory;
+
   static const _recordsKey = 'termul_pod_media_records_v1';
+  final DocumentsDirectoryProvider _documentsDirectoryProvider;
 
   Future<List<PodMediaRecord>> getRecords() async {
     final preferences = await SharedPreferences.getInstance();
@@ -15,11 +22,15 @@ class PodStorageService {
     final records = <PodMediaRecord>[];
     for (final value in values) {
       try {
-        records.add(PodMediaRecord.fromJson(jsonDecode(value) as Map<String, dynamic>));
+        records.add(
+          PodMediaRecord.fromJson(
+            jsonDecode(value) as Map<String, dynamic>,
+          ),
+        );
       } on FormatException {
-        // Skip a damaged entry while preserving the remaining records.
+        // Preserve valid entries if one persisted entry is damaged.
       } on TypeError {
-        // Skip an entry with an unexpected schema.
+        // Ignore entries written by an incompatible older schema.
       }
     }
     records.sort((a, b) => b.createdAt.compareTo(a.createdAt));
@@ -38,30 +49,79 @@ class PodStorageService {
     if (!await source.exists()) {
       throw const FileSystemException('File kamera tidak ditemukan.');
     }
-    final root = await getApplicationDocumentsDirectory();
-    final folder = Directory('${root.path}${Platform.pathSeparator}pod_media');
+
+    final root = await _documentsDirectoryProvider();
+    final folder = Directory(
+      '${root.path}${Platform.pathSeparator}pod_media',
+    );
     await folder.create(recursive: true);
+
     final extension = type == 'video' ? 'mp4' : 'jpg';
     final stamp = createdAt.toUtc().toIso8601String().replaceAll(':', '-');
-    final destination = File('${folder.path}${Platform.pathSeparator}pod_$stamp.$extension');
+    final baseName = 'pod_$stamp';
+    var destination = File(
+      '${folder.path}${Platform.pathSeparator}$baseName.$extension',
+    );
+    var suffix = 1;
+    while (await destination.exists()) {
+      destination = File(
+        '${folder.path}${Platform.pathSeparator}'
+        '${baseName}_$suffix.$extension',
+      );
+      suffix++;
+    }
+
     await source.copy(destination.path);
-    final record = PodMediaRecord(path: destination.path, type: type, createdAt: createdAt,
-      latitude: latitude, longitude: longitude, accuracy: accuracy);
-    final preferences = await SharedPreferences.getInstance();
-    final records = await getRecords();
-    records.insert(0, record);
-    await preferences.setStringList(_recordsKey, records.map((item) => jsonEncode(item.toJson())).toList());
+    final record = PodMediaRecord(
+      path: destination.path,
+      type: type,
+      createdAt: createdAt,
+      latitude: latitude,
+      longitude: longitude,
+      accuracy: accuracy,
+    );
+
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      final records = await getRecords();
+      records.insert(0, record);
+      final saved = await preferences.setStringList(
+        _recordsKey,
+        records.map((item) => jsonEncode(item.toJson())).toList(),
+      );
+      if (!saved) {
+        throw const FileSystemException(
+          'Indeks dokumentasi tidak berhasil disimpan.',
+        );
+      }
+    } catch (_) {
+      // Do not leave an unindexed media file after a metadata write failure.
+      if (await destination.exists()) {
+        await destination.delete();
+      }
+      rethrow;
+    }
+
     return record;
   }
 
   Future<void> deleteRecord(PodMediaRecord record) async {
+    final preferences = await SharedPreferences.getInstance();
+    final records = await getRecords();
+    records.removeWhere((item) => item.path == record.path);
+    final saved = await preferences.setStringList(
+      _recordsKey,
+      records.map((item) => jsonEncode(item.toJson())).toList(),
+    );
+    if (!saved) {
+      throw const FileSystemException(
+        'Riwayat tidak berhasil diperbarui. File tidak dihapus.',
+      );
+    }
+
     final file = File(record.path);
     if (await file.exists()) {
       await file.delete();
     }
-    final preferences = await SharedPreferences.getInstance();
-    final records = await getRecords();
-    records.removeWhere((item) => item.path == record.path);
-    await preferences.setStringList(_recordsKey, records.map((item) => jsonEncode(item.toJson())).toList());
   }
 }
