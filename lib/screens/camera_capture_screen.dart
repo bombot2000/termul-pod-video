@@ -37,10 +37,12 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
   }
 
   Future<void> _initializeCamera() async {
-    if (mounted) { setState(() {
-      _initializing = true;
-      _error = null;
-    }); }
+    if (mounted) {
+      setState(() {
+        _initializing = true;
+        _error = null;
+      });
+    }
     try {
       final cameras = await availableCameras();
       if (cameras.isEmpty) {
@@ -63,17 +65,21 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
       setState(() {
         _controller = controller;
         _initializing = false;
-      }); }
-    } on CameraException catch (exception) {
-      if (mounted) setState(() {
-        _error = _cameraErrorMessage(exception);
-        _initializing = false;
-      }); }
-    } catch (exception) {
-      if (mounted) setState(() {
-        _error = 'Kamera tidak dapat dibuka: $exception';
-        _initializing = false;
       });
+    } on CameraException catch (exception) {
+      if (mounted) {
+        setState(() {
+          _error = _cameraErrorMessage(exception);
+          _initializing = false;
+        });
+      }
+    } catch (exception) {
+      if (mounted) {
+        setState(() {
+          _error = 'Kamera tidak dapat dibuka: $exception';
+          _initializing = false;
+        });
+      }
     }
   }
 
@@ -131,12 +137,14 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
     final controller = _controller;
     if (controller == null ||
         !controller.value.isInitialized ||
-        _saving) return;
+        _saving) {
+      return;
+    }
 
     if (_videoMode && !_recording) {
       try {
         await controller.startVideoRecording();
-        if (mounted) setState(() => _recording = true);
+        if (mounted) { setState(() => _recording = true); }
       } on CameraException catch (exception) {
         _showMessage(_cameraErrorMessage(exception));
       }
@@ -151,7 +159,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
       if (_videoMode) {
         if (!controller.value.isRecordingVideo) { return; }
         media = await controller.stopVideoRecording();
-        if (mounted) setState(() => _recording = false);
+        if (mounted) { setState(() => _recording = false); }
       } else {
         media = await controller.takePicture();
       }
@@ -170,7 +178,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
     } catch (exception) {
       _showMessage('Gagal menyimpan dokumentasi: $exception');
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) { setState(() => _saving = false); }
     }
   }
 
