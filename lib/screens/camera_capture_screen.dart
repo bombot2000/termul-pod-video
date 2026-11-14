@@ -173,8 +173,10 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
   Future<String?> _addressFor(PodLocationFix? fix) async {
     if (fix == null) return null;
     return _addressResolver.resolve(
-      latitude: fix.latitude,
-      longitude: fix.longitude,
+      // Reverse geocoding follows the actual device reading, not the
+      // smoothed coordinate used for display/watermark placement.
+      latitude: fix.rawLatitude,
+      longitude: fix.rawLongitude,
     );
   }
 

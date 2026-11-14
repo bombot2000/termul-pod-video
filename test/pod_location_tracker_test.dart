@@ -71,7 +71,6 @@ void main() {
   test('a live fix carries its age and updates the status', () async {
     await tracker.start();
     await deliver(sample(ageSeconds: 3));
-
     final fix = tracker.latest!;
     expect(fix.ageSeconds, 3);
     expect(fix.latitude, -7.9826);
@@ -79,16 +78,59 @@ void main() {
     expect(tracker.status.value.state, PodLocationState.ready);
   });
 
-  test('a fix older than maxFixAge is not used for a capture', () async {
+  test('a stale sample cannot overwrite the latest fresh sample', () async {
     await tracker.start();
-    await deliver(sample(ageSeconds: 45));
+    await deliver(sample());
+    await deliver(sample(ageSeconds: 45, accuracy: 40));
+    expect(tracker.latest, isNotNull);
+    expect(tracker.latest!.accuracy, 8);
+    expect(tracker.status.value.fix!.accuracy, 8);
+  });
+
+  test('future-dated samples outside clock tolerance are ignored', () async {
+    await tracker.start();
+    await deliver(PodLocationSample(
+      latitude: -7.9,
+      longitude: 112.7,
+      accuracy: 3,
+      timestamp: now.add(const Duration(seconds: 10)),
+    ));
     expect(tracker.latest, isNull);
+  });
+
+  test('out-of-order samples cannot replace the latest accepted fix',
+      () async {
+    await tracker.start();
+    await deliver(sample());
+    await deliver(sample(ageSeconds: 1, accuracy: 2));
+    expect(tracker.latest!.accuracy, 8);
+    expect(tracker.latest!.latitude, -7.9826);
+  });
+
+  test('smoothed coordinates retain raw platform accuracy', () async {
+    await tracker.start();
+    await deliver(sample(accuracy: 12));
+    await deliver(PodLocationSample(
+      latitude: -7.98261,
+      longitude: 112.63081,
+      accuracy: 17,
+      timestamp: now.add(const Duration(seconds: 1)),
+    ));
+    expect(tracker.latest!.accuracy, 17);
+    expect(tracker.latest!.rawLatitude, -7.98261);
+    expect(tracker.latest!.sampleCount, 2);
+  });
+
+  test('invalid platform accuracy is treated as weak', () async {
+    await tracker.start();
+    await deliver(sample(accuracy: double.nan));
+    expect(tracker.latest!.accuracy, podPoorAccuracyMeters + 1);
+    expect(tracker.latest!.isPoor, isTrue);
   });
 
   test('weak accuracy and mock providers are flagged', () async {
     await tracker.start();
     await deliver(sample(accuracy: podPoorAccuracyMeters + 30, mocked: true));
-
     final fix = tracker.latest!;
     expect(fix.isPoor, isTrue);
     expect(fix.isMocked, isTrue);
@@ -103,7 +145,6 @@ void main() {
   test('acquire returns a fresh live fix immediately', () async {
     await tracker.start();
     await deliver(sample(ageSeconds: 1));
-
     final fix = await tracker.acquire(wait: const Duration(milliseconds: 20));
     expect(fix, isNotNull);
     expect(fix!.ageSeconds, 1);
@@ -111,16 +152,15 @@ void main() {
 
   test('acquire waits for the next reading when none is available', () async {
     await tracker.start();
-
     final pending = tracker.acquire(wait: const Duration(seconds: 2));
     backend.controller.add(sample());
-
     final fix = await pending;
     expect(fix, isNotNull);
     expect(fix!.accuracy, 8);
   });
 
-  test('acquire returns null on timeout without a last-known position', () async {
+  test('acquire returns null on timeout without a last-known position',
+      () async {
     await tracker.start();
     final fix = await tracker.acquire(wait: const Duration(milliseconds: 30));
     expect(fix, isNull);
@@ -129,7 +169,6 @@ void main() {
   test('acquire falls back to a recent last-known position', () async {
     backend.lastKnownSample = sample(ageSeconds: 60);
     await tracker.start();
-
     final fix = await tracker.acquire(wait: const Duration(milliseconds: 30));
     expect(fix, isNotNull);
     expect(fix!.ageSeconds, 60);
@@ -138,7 +177,6 @@ void main() {
   test('acquire rejects an old last-known position', () async {
     backend.lastKnownSample = sample(ageSeconds: 600);
     await tracker.start();
-
     final fix = await tracker.acquire(wait: const Duration(milliseconds: 30));
     expect(fix, isNull);
   });
@@ -146,7 +184,6 @@ void main() {
   test('denied permission is reported and nothing is subscribed', () async {
     backend.availability = PodLocationAvailability.denied;
     await tracker.start();
-
     expect(tracker.status.value.state, PodLocationState.denied);
     expect(backend.controller.hasListener, isFalse);
     expect(
@@ -164,12 +201,10 @@ void main() {
   test('stop while permission is being requested wins', () async {
     final gate = Completer<void>();
     backend.availabilityGate = gate;
-
     final started = tracker.start();
     await tracker.stop();
     gate.complete();
     await started;
-
     expect(backend.controller.hasListener, isFalse);
     expect(tracker.status.value.state, PodLocationState.idle);
   });
@@ -178,7 +213,6 @@ void main() {
     await tracker.start();
     await tracker.stop();
     expect(backend.controller.hasListener, isFalse);
-
     await tracker.start();
     expect(backend.controller.hasListener, isTrue);
   });
