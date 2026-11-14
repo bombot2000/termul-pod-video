@@ -60,6 +60,38 @@ void main() {
     expect(tracker.status.value.state, PodLocationState.searching);
   });
 
+  test('skips stale stream samples and accepts the next fresh fix',
+      () async {
+    final starting = tracker.start();
+    await Future<void>.delayed(Duration.zero);
+    permissionGate.complete();
+    await starting;
+
+    final pending = tracker.acquire(wait: const Duration(seconds: 1));
+    backend.controller.add(
+      PodLocationSample(
+        latitude: -7.9826,
+        longitude: 112.6308,
+        accuracy: 5,
+        timestamp: now.subtract(const Duration(minutes: 2)),
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+    backend.controller.add(
+      PodLocationSample(
+        latitude: -7.9827,
+        longitude: 112.6309,
+        accuracy: 4,
+        timestamp: now,
+      ),
+    );
+
+    final fix = await pending;
+    expect(fix, isNotNull);
+    expect(fix!.latitude, -7.9827);
+    expect(fix.longitude, 112.6309);
+  });
+
   test('does not use an expired sample received while waiting for GPS',
       () async {
     final starting = tracker.start();
