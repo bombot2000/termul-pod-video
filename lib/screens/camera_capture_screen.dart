@@ -177,6 +177,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
       final position = await _readPosition();
       var sourcePath = media.path;
       String? watermarkedPath;
+      var watermarkApplied = false;
       if (type == 'photo') {
         try {
           watermarkedPath = await PhotoWatermarkService().createWatermarkedCopy(
@@ -187,6 +188,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
             accuracy: position?.accuracy,
           );
           sourcePath = watermarkedPath;
+          watermarkApplied = true;
         } catch (exception) {
           _showMessage(
             'Foto tetap disimpan, tetapi watermark gagal diterapkan: $exception',
@@ -203,6 +205,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
           latitude: position?.latitude,
           longitude: position?.longitude,
           accuracy: position?.accuracy,
+          watermarkApplied: type == 'photo' ? watermarkApplied : null,
         );
       } finally {
         if (watermarkedPath != null) {
