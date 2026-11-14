@@ -62,48 +62,51 @@ void _renderWatermark({
   }
 
   final photo = img.bakeOrientation(decoded);
+  final compact = layout == 'compact';
+  final header = layout == 'header';
   final font = photo.width >= 2400
       ? img.arial48
       : photo.width >= 1200
           ? img.arial24
           : img.arial14;
-  final padding = (photo.width * 0.025).round().clamp(12, 64);
-  final lines = <String>[
-    'TERMUL POD  |  PROOF OF DELIVERY',
-    timestamp,
-    gpsLine,
-    accuracyLine,
-  ];
-  if (address != null && address.trim().isNotEmpty) {
-    final maxChars =
-        ((photo.width - padding * 4) / (font.lineHeight * 0.55))
-            .floor()
-            .clamp(18, 100)
-            .toInt();
-    lines.addAll(_wrapAddress('Alamat  ${address.trim()}', maxChars));
-  }
-  final compact = layout == 'compact';
-  final header = layout == 'header';
-  final compactMaxChars = ((photo.width * 0.72 - padding * 4) /
-          (img.arial14.lineHeight * 0.55))
-      .floor()
-      .clamp(12, 80)
-      .toInt();
-  final visibleLines = compact
-      ? <String>[
-          timestamp,
-          gpsLine,
-          accuracyLine,
-          if (address != null && address.trim().isNotEmpty)
-            ..._wrapAddress('Alamat  ${address.trim()}', compactMaxChars),
-        ]
-      : lines;
   final activeFont = compact
       ? (photo.width >= 2400 ? img.arial24 : img.arial14)
       : font;
+  final padding = (photo.width * 0.025).round().clamp(12, 64);
+  final panelWidth =
+      compact ? (photo.width * 0.72).round() : photo.width - padding * 2;
+
+  // Estimate a safe character width from the active bitmap font and the
+  // actual text area. GPS coordinates can be wider than the compact panel.
+  final contentWidth = (panelWidth - padding * 2).clamp(1, photo.width);
+  final maxChars = (contentWidth / (activeFont.lineHeight * 0.55))
+      .floor()
+      .clamp(12, 100)
+      .toInt();
+
+  final gpsLines = _wrapAddress(gpsLine, maxChars);
+  final accuracyLines = _wrapAddress(accuracyLine, maxChars);
+  final addressLines = address == null || address.trim().isEmpty
+      ? <String>[]
+      : _wrapAddress('Alamat  ${address.trim()}', maxChars);
+
+  final visibleLines = compact
+      ? <String>[
+          timestamp,
+          ...gpsLines,
+          ...accuracyLines,
+          ...addressLines,
+        ]
+      : <String>[
+          'TERMUL POD  |  PROOF OF DELIVERY',
+          timestamp,
+          ...gpsLines,
+          ...accuracyLines,
+          ...addressLines,
+        ];
+
   final lineGap = (activeFont.lineHeight * 0.35).round();
   final lineHeight = activeFont.lineHeight + lineGap;
-  final panelWidth = compact ? (photo.width * 0.72).round() : photo.width - padding * 2;
   final panelHeight = padding * 2 + lineHeight * visibleLines.length;
   final left = padding;
   final right = left + panelWidth;
@@ -149,12 +152,35 @@ void _renderWatermark({
 }
 
 List<String> _wrapAddress(String value, int maxChars) {
-  final words = value.split(RegExp(r'\s+'));
+  final words = value.split(RegExp(r'\\s+'));
   final lines = <String>[];
   var current = '';
   var truncated = false;
 
   for (final word in words) {
+    // Split unusually long unbroken tokens too, so coordinates and IDs do
+    // not extend beyond the watermark panel.
+    if (word.length > maxChars) {
+      if (current.isNotEmpty) {
+        lines.add(current);
+        current = '';
+        if (lines.length == 2) {
+          truncated = true;
+          break;
+        }
+      }
+      for (var offset = 0; offset < word.length; offset += maxChars) {
+        final end = (offset + maxChars).clamp(0, word.length);
+        if (lines.length == 2) {
+          truncated = true;
+          break;
+        }
+        lines.add(word.substring(offset, end));
+      }
+      if (truncated) break;
+      continue;
+    }
+
     final candidate = current.isEmpty ? word : '$current $word';
     if (candidate.length > maxChars && current.isNotEmpty) {
       lines.add(current);
@@ -168,7 +194,7 @@ List<String> _wrapAddress(String value, int maxChars) {
     }
   }
 
-  if (current.isNotEmpty && lines.length < 2) {
+  if (!truncated && current.isNotEmpty && lines.length < 2) {
     lines.add(current);
   } else if (current.isNotEmpty) {
     truncated = true;

@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:termul_pod_video/services/photo_watermark_service.dart';
+import 'package:termul_pod_video/services/pod_watermark_settings_service.dart';
 
 void main() {
   late Directory temporaryDirectory;
@@ -53,6 +54,32 @@ void main() {
     expect(panelPixel.r, lessThan(50));
     expect(panelPixel.g, lessThan(70));
     expect(panelPixel.b, lessThan(70));
+  });
+
+  test('compact watermark handles narrow photos and long GPS details', () async {
+    SharedPreferences.setMockInitialValues({
+      PodWatermarkSettingsService.storageKey: PodWatermarkLayout.compact.name,
+    });
+    final narrowImage = img.Image(width: 320, height: 240);
+    img.fill(narrowImage, color: img.ColorRgb8(80, 140, 190));
+    final narrowSource = File('${temporaryDirectory.path}/narrow.jpg');
+    await narrowSource.writeAsBytes(img.encodeJpg(narrowImage, quality: 95));
+
+    final outputPath = await PhotoWatermarkService().createWatermarkedCopy(
+      sourcePath: narrowSource.path,
+      capturedAt: DateTime.parse('2026-11-14T09:30:00'),
+      latitude: -7.982612,
+      longitude: 112.630812,
+      accuracy: 8.5,
+      address: 'Jalan Soekarno Hatta, Lowokwaru, Kota Malang, Jawa Timur, Indonesia',
+    );
+
+    expect(await File(outputPath).exists(), isTrue);
+    expect(await narrowSource.exists(), isTrue);
+    final output = img.decodeJpg(await File(outputPath).readAsBytes());
+    expect(output, isNotNull);
+    expect(output!.width, 320);
+    expect(output.height, 240);
   });
 
   test('watermark remains possible when GPS is unavailable', () async {
