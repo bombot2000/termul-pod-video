@@ -113,7 +113,7 @@ void _renderWatermark({
 }
 
 List<String> _wrapAddress(String value, int maxChars) {
-  final words = value.split(RegExp(r'\\s+'));
+  final words = value.split(RegExp(r'\s+'));
   final lines = <String>[];
   var current = '';
   var truncated = false;
