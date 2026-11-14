@@ -240,17 +240,20 @@ class PodLocationTracker {
       return;
     }
 
+    final platformAccuracy = raw.accuracy.isFinite && raw.accuracy > 0
+        ? raw.accuracy
+        : podPoorAccuracyMeters;
     final estimate = _engine.add(
       latitude: raw.latitude,
       longitude: raw.longitude,
-      accuracy: raw.accuracy,
+      accuracy: platformAccuracy,
       timestamp: raw.timestamp,
     );
     final sample = PodLocationSample(
       latitude: estimate.latitude,
       longitude: estimate.longitude,
       // Never display a statistically reduced estimate as device accuracy.
-      accuracy: raw.accuracy,
+      accuracy: platformAccuracy,
       timestamp: raw.timestamp,
       isMocked: raw.isMocked,
       rawLatitude: raw.latitude,
