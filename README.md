@@ -10,13 +10,13 @@ A separate Flutter Android application for photo/video proof of delivery (POD). 
 - Capture timestamp and optional GPS coordinates/accuracy are recorded as metadata.
 - Photo/video files are copied into app-private local storage and indexed for the History screen.
 - History displays saved photos and metadata and supports deleting a selected record.
-- Watermark rendering and address reverse-geocoding remain planned; the camera preview timestamp is not yet burned into media.
+- Photo watermark is burned into the saved JPEG with capture time, GPS coordinates (when available), and accuracy. Video watermark and address reverse-geocoding remain planned.
 - GitHub Actions runs static analysis, widget tests, and an Android release-mode APK build.
 - A successful push build publishes the APK to a GitHub Release.
 
 ## CI build
 
-The workflow uses Java 21 and the current Flutter stable channel. It generates the Android platform directory if missing, applies the idempotent Android configuration script, then runs:
+The workflow uses Java 21 and pins Flutter 3.50.0 for reproducible builds. It generates the Android platform directory if missing, applies the idempotent Android configuration script, then runs:
 
 ```sh
 flutter pub get
@@ -31,7 +31,7 @@ The build number is taken from the GitHub Actions run number. The workflow does 
 
 `tool/configure_android.py` adds INTERNET, CAMERA, RECORD_AUDIO, and location permissions, declares camera/GPS hardware features as optional, and sets Android `minSdk` to at least 24. It is safe to run more than once.
 
-The script does not access or modify any keystore and does not configure permanent signing.
+The script does not access, create, replace, or modify any keystore. The generated Flutter Android template debug signing is used for the release-mode APK; it is installable for internal testing, but a different runner-generated debug key can prevent in-place upgrades between builds.
 
 ## APK signing note
 
@@ -54,7 +54,7 @@ Commit the generated `android/` directory and `.metadata` only if you choose to 
 ## Roadmap
 
 1. Improve GPS status feedback and add reverse geocoded address metadata.
-2. Implement watermark renderer and burn timestamp/GPS/address into photo files.
-3. Add configurable watermark templates and video overlay/export strategy.
+2. Add configurable photo watermark templates.
+3. Implement video watermark overlay/export strategy.
 4. Add media playback, sharing/export, and storage management.
 5. Complete offline tests and physical-device verification.
