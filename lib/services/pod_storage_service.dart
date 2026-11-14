@@ -35,13 +35,15 @@ class PodStorageService {
     double? accuracy,
   }) async {
     final source = File(sourcePath);
-    if (!await source.exists()) throw const FileSystemException('File kamera tidak ditemukan.');
+    if (!await source.exists()) {
+      throw const FileSystemException('File kamera tidak ditemukan.');
+    }
     final root = await getApplicationDocumentsDirectory();
     final folder = Directory('${root.path}${Platform.pathSeparator}pod_media');
     await folder.create(recursive: true);
     final extension = type == 'video' ? 'mp4' : 'jpg';
     final stamp = createdAt.toUtc().toIso8601String().replaceAll(':', '-');
-    final destination = File('${folder.path}${Platform.pathSeparator}pod_${stamp}.$extension');
+    final destination = File('${folder.path}${Platform.pathSeparator}pod_$stamp.$extension');
     await source.copy(destination.path);
     final record = PodMediaRecord(path: destination.path, type: type, createdAt: createdAt,
       latitude: latitude, longitude: longitude, accuracy: accuracy);
@@ -54,7 +56,9 @@ class PodStorageService {
 
   Future<void> deleteRecord(PodMediaRecord record) async {
     final file = File(record.path);
-    if (await file.exists()) await file.delete();
+    if (await file.exists()) {
+      await file.delete();
+    }
     final preferences = await SharedPreferences.getInstance();
     final records = await getRecords();
     records.removeWhere((item) => item.path == record.path);
