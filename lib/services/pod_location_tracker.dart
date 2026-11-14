@@ -30,6 +30,7 @@ class PodLocationSample {
     this.rawLongitude,
     this.sampleCount = 1,
     this.locked = false,
+    this.speed,
   });
 
   /// Position used for the watermark and saved record.
@@ -43,13 +44,25 @@ class PodLocationSample {
   final double? rawLongitude;
   final int sampleCount;
   final bool locked;
+
+  /// Reported ground speed in m/s, when the platform provides one.
+  final double? speed;
 }
 
 class PodLocationFix {
-  const PodLocationFix({required this.sample, required this.age});
+  const PodLocationFix({
+    required this.sample,
+    required this.age,
+    this.clockOffset = Duration.zero,
+  });
 
   final PodLocationSample sample;
   final Duration age;
+
+  /// How far the device clock is from GPS time (device minus GPS), when the
+  /// tracker had to correct for it. Zero when the clock agrees with GPS.
+  final Duration clockOffset;
+  int get clockOffsetSeconds => clockOffset.inSeconds;
 
   double get latitude => sample.latitude;
   double get longitude => sample.longitude;
@@ -61,6 +74,13 @@ class PodLocationFix {
   bool get isLocked => sample.locked;
   bool get isPoor => accuracy > podPoorAccuracyMeters;
   int get ageSeconds => age.isNegative ? 0 : age.inSeconds;
+}
+
+class _SkewProbe {
+  const _SkewProbe(this.timestamp, this.receivedAt);
+
+  final DateTime timestamp;
+  final DateTime receivedAt;
 }
 
 class PodLocationStatus {
@@ -129,6 +149,7 @@ class GeolocatorLocationBackend implements PodLocationBackend {
       accuracy: position.accuracy,
       timestamp: position.timestamp,
       isMocked: position.isMocked,
+      speed: position.speed,
     );
   }
 }
@@ -164,15 +185,58 @@ class PodLocationTracker {
   StreamSubscription<PodLocationSample>? _subscription;
   PodLocationSample? _latest;
   DateTime? _lastAcceptedTimestamp;
+  Duration _clockOffset = Duration.zero;
+  _SkewProbe? _skewProbe;
   int _generation = 0;
   bool _starting = false;
   bool _disposed = false;
 
-  PodLocationFix _fixFor(PodLocationSample sample) =>
-      PodLocationFix(sample: sample, age: _clock().difference(sample.timestamp));
+  PodLocationFix _fixFor(PodLocationSample sample) => PodLocationFix(
+        sample: sample,
+        age: _clock().difference(sample.timestamp) - _clockOffset,
+        clockOffset: _clockOffset,
+      );
 
   bool _isUsableLiveFix(PodLocationFix fix) =>
       fix.age <= maxFixAge && fix.age >= -maxFutureSkew;
+
+  bool _isFreshAge(Duration age) => age <= maxFixAge && age >= -maxFutureSkew;
+
+  /// Decides whether a sample is fresh enough, correcting for a device clock
+  /// that disagrees with GPS time.
+  ///
+  /// GPS timestamps come from the satellites, the age check from the phone
+  /// clock. If the phone clock is wrong, every fix looks stale or future-dated
+  /// and the app would never get coordinates. Two consecutive out-of-range
+  /// samples whose timestamps advance in step with their arrival are real
+  /// readings on a skewed clock (a stale burst arrives all at once, so it
+  /// does not match). The offset is then learned and applied.
+  bool _acceptTimestamp(DateTime timestamp, DateTime received) {
+    final rawAge = received.difference(timestamp);
+    if (_isFreshAge(rawAge)) {
+      _clockOffset = Duration.zero;
+      _skewProbe = null;
+      return true;
+    }
+    if (_clockOffset != Duration.zero && _isFreshAge(rawAge - _clockOffset)) {
+      return true;
+    }
+    final probe = _skewProbe;
+    _skewProbe = _SkewProbe(timestamp, received);
+    if (probe == null) return false;
+    final timestampStep = timestamp.difference(probe.timestamp);
+    final arrivalStep = received.difference(probe.receivedAt);
+    if (timestampStep < const Duration(milliseconds: 500) ||
+        arrivalStep < const Duration(milliseconds: 500)) {
+      return false;
+    }
+    if ((timestampStep - arrivalStep).abs() > const Duration(seconds: 1)) {
+      return false;
+    }
+    _clockOffset = rawAge;
+    _skewProbe = null;
+    return true;
+  }
 
   /// The newest live fix, or null if there is none or it is too old.
   PodLocationFix? get latest {
@@ -222,10 +286,8 @@ class PodLocationTracker {
 
   void _onSample(PodLocationSample raw) {
     if (_disposed) return;
-    final age = _clock().difference(raw.timestamp);
     // Expired, future-dated, malformed and out-of-order events must not
     // replace a newer fix or contaminate the smoothing window.
-    if (age > maxFixAge || age < -maxFutureSkew) return;
     if (!raw.latitude.isFinite ||
         !raw.longitude.isFinite ||
         raw.latitude < -90 ||
@@ -239,6 +301,7 @@ class PodLocationTracker {
         !raw.timestamp.isAfter(previousTimestamp)) {
       return;
     }
+    if (!_acceptTimestamp(raw.timestamp, _clock())) return;
 
     final platformAccuracy = raw.accuracy.isFinite && raw.accuracy > 0
         ? raw.accuracy
@@ -248,6 +311,7 @@ class PodLocationTracker {
       longitude: raw.longitude,
       accuracy: platformAccuracy,
       timestamp: raw.timestamp,
+      speed: raw.speed,
     );
     final sample = PodLocationSample(
       latitude: estimate.latitude,
@@ -260,6 +324,7 @@ class PodLocationTracker {
       rawLongitude: raw.longitude,
       sampleCount: estimate.sampleCount,
       locked: estimate.locked,
+      speed: raw.speed,
     );
     _lastAcceptedTimestamp = raw.timestamp;
     _latest = sample;
@@ -276,6 +341,8 @@ class PodLocationTracker {
     _engine.reset();
     _latest = null;
     _lastAcceptedTimestamp = null;
+    _clockOffset = Duration.zero;
+    _skewProbe = null;
     if (!_disposed) {
       status.value = const PodLocationStatus(PodLocationState.idle);
     }
