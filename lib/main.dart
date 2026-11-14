@@ -56,9 +56,11 @@ class _PodHomePageState extends State<PodHomePage> {
   int _historyVersion = 0;
   static const _titles = ['Dokumentasi POD', 'Riwayat', 'Pengaturan'];
 
-  Future<void> _openCamera() async {
+  Future<void> _openCamera({bool videoMode = false}) async {
     final record = await Navigator.of(context).push<PodMediaRecord>(
-      MaterialPageRoute(builder: (_) => const CameraCaptureScreen()),
+      MaterialPageRoute(
+        builder: (_) => CameraCaptureScreen(initialVideoMode: videoMode),
+      ),
     );
     if (!mounted) return;
     if (record != null) {
@@ -101,7 +103,11 @@ class _PodHomePageState extends State<PodHomePage> {
       body: IndexedStack(
         index: _selectedIndex,
         children: [
-          _CaptureDashboard(onCapture: _openCamera),
+          _CaptureDashboard(
+            onCapture: () => _openCamera(),
+            onPhotoCapture: () => _openCamera(),
+            onVideoCapture: () => _openCamera(videoMode: true),
+          ),
           _HistoryPage(key: ValueKey(_historyVersion)),
           const _SettingsPlaceholder(),
         ],
@@ -145,8 +151,14 @@ class _PodHomePageState extends State<PodHomePage> {
 }
 
 class _CaptureDashboard extends StatelessWidget {
-  const _CaptureDashboard({required this.onCapture});
+  const _CaptureDashboard({
+    required this.onCapture,
+    required this.onPhotoCapture,
+    required this.onVideoCapture,
+  });
   final VoidCallback onCapture;
+  final VoidCallback onPhotoCapture;
+  final VoidCallback onVideoCapture;
 
   @override
   Widget build(BuildContext context) {
@@ -219,7 +231,7 @@ class _CaptureDashboard extends StatelessWidget {
                 icon: Icons.photo_camera_outlined,
                 title: 'Foto POD',
                 subtitle: 'Bukti serah terima',
-                onTap: onCapture,
+                onTap: onPhotoCapture,
               ),
             ),
             const SizedBox(width: 12),
@@ -228,7 +240,7 @@ class _CaptureDashboard extends StatelessWidget {
                 icon: Icons.videocam_outlined,
                 title: 'Video POD',
                 subtitle: 'Rekaman pengiriman',
-                onTap: onCapture,
+                onTap: onVideoCapture,
               ),
             ),
           ],
