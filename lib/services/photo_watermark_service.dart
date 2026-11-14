@@ -84,8 +84,19 @@ void _renderWatermark({
   }
   final compact = layout == 'compact';
   final header = layout == 'header';
+  final compactMaxChars = ((photo.width * 0.72 - padding * 4) /
+          (img.arial14.lineHeight * 0.55))
+      .floor()
+      .clamp(12, 80)
+      .toInt();
   final visibleLines = compact
-      ? <String>[timestamp, gpsLine, accuracyLine]
+      ? <String>[
+          timestamp,
+          gpsLine,
+          accuracyLine,
+          if (address != null && address.trim().isNotEmpty)
+            ..._wrapAddress('Alamat  ${address.trim()}', compactMaxChars),
+        ]
       : lines;
   final activeFont = compact
       ? (photo.width >= 2400 ? img.arial24 : img.arial14)
