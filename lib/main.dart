@@ -63,7 +63,7 @@ class _PodHomePageState extends State<PodHomePage> {
         actions: [
           IconButton(
             tooltip: 'Status penyimpanan',
-            onPressed: () => _showInfo(context, 'Mode offline aktif', 'Dokumentasi disiapkan agar dapat disimpan secara lokal saat jaringan tidak tersedia.'),
+            onPressed: () => _showInfo(context, 'Mode offline', 'Penyimpanan lokal sedang disiapkan. Setelah modul selesai, dokumentasi akan disimpan di perangkat dan diunggah saat jaringan tersedia.'),
             icon: const Icon(Icons.cloud_off_outlined),
           ),
           const SizedBox(width: 8),
@@ -152,7 +152,7 @@ class _CaptureDashboard extends StatelessWidget {
         const _InfoRow(icon: Icons.schedule, title: 'Tanggal dan waktu', detail: 'Timestamp otomatis'),
         const _InfoRow(icon: Icons.location_on_outlined, title: 'Lokasi GPS', detail: 'Koordinat dan akurasi lokasi'),
         const _InfoRow(icon: Icons.layers_outlined, title: 'Watermark', detail: 'Template yang dapat disesuaikan'),
-        const _InfoRow(icon: Icons.offline_pin_outlined, title: 'Penyimpanan lokal', detail: 'Siap digunakan tanpa koneksi internet'),
+        const _InfoRow(icon: Icons.offline_pin_outlined, title: 'Penyimpanan lokal', detail: 'Dirancang untuk bekerja tanpa koneksi internet'),
       ],
     );
   }
@@ -211,7 +211,7 @@ class _InfoRow extends StatelessWidget {
         leading: CircleAvatar(backgroundColor: const Color(0xFFE7F3EF), child: Icon(icon, color: const Color(0xFF146C5A), size: 20)),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
         subtitle: Text(detail, style: const TextStyle(fontSize: 12)),
-        trailing: const Icon(Icons.check_circle_outline, color: Color(0xFF27836D), size: 20),
+        trailing: const Text('Segera', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF8A9B94))),
       )),
     );
   }
