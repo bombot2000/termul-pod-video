@@ -44,6 +44,7 @@ class PodStorageService {
     double? latitude,
     double? longitude,
     double? accuracy,
+    String? address,
     bool? watermarkApplied,
   }) async {
     final source = File(sourcePath);
@@ -80,6 +81,7 @@ class PodStorageService {
       latitude: latitude,
       longitude: longitude,
       accuracy: accuracy,
+      address: address,
       watermarkApplied: watermarkApplied,
     );
 
