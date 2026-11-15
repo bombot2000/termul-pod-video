@@ -452,9 +452,22 @@ class _HistoryPageState extends State<_HistoryPage> {
       ),
     );
     if (confirmed != true) return;
-    await PodStorageService().deleteRecord(record);
-    if (!mounted) return;
-    setState(() => _records = PodStorageService().getRecords());
+    try {
+      await PodStorageService().deleteRecord(record);
+      if (!mounted) return;
+      setState(() => _records = PodStorageService().getRecords());
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Dokumentasi berhasil dihapus.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      // Refresh because the storage layer may already have updated the index
+      // before a filesystem deletion error occurred.
+      setState(() => _records = PodStorageService().getRecords());
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Penghapusan dokumentasi mengalami kendala: $error')),
+      );
+    }
   }
 
   @override
@@ -500,7 +513,8 @@ class _HistoryPageState extends State<_HistoryPage> {
             final record = records[index];
             final isVideo = record.type == 'video';
             final file = File(record.path);
-            final coordinates = record.latitude == null
+            final coordinates = record.latitude == null ||
+                    record.longitude == null
                 ? 'Koordinat GPS tidak tersedia'
                 : '${record.latitude!.toStringAsFixed(6)}, ${record.longitude!.toStringAsFixed(6)}';
             final addressLine = record.address?.trim().isNotEmpty == true
