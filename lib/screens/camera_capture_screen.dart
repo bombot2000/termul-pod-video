@@ -185,7 +185,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
     if (controller == null ||
         !controller.value.isInitialized ||
         _saving ||
-        _startingRecording) {
+        (_startingRecording && !_recording)) {
       return;
     }
 
