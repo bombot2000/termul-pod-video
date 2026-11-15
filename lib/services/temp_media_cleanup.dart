@@ -2,12 +2,9 @@ import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
 
-/// Removes stale raw camera captures and their derived photo-watermark copies.
-///
-/// Normal captures clean up after themselves. This sweep catches only files
-/// whose names match the camera plugin's capture prefixes (CAP/REC), plus
-/// photo watermark copies derived from CAP JPEGs. Unrelated cache images/videos
-/// are deliberately left untouched.
+/// Removes stale photo-watermark intermediates when the original capture
+/// still exists. Raw camera captures and unknown video outputs are never swept:
+/// after an interrupted save they may be the only remaining POD evidence.
 class TempMediaCleanup {
   TempMediaCleanup({
     Future<Directory> Function()? temporaryDirectory,
@@ -20,22 +17,11 @@ class TempMediaCleanup {
   final DateTime Function() _clock;
   final Duration minAge;
 
-  static final RegExp _cameraPhoto =
-      RegExp(r'^CAP[^/\\]*\.(?:JPG|JPEG)$', caseSensitive: false);
-  static final RegExp _cameraVideo =
-      RegExp(r'^REC[^/\\]*\.MP4$', caseSensitive: false);
   static final RegExp _watermarkedPhoto =
-      RegExp(r'^CAP[^/\\]*\.(?:JPG|JPEG)\.WATERMARKED\.JPG$',
+      RegExp(r'^CAP[^/]*\.(?:JPG|JPEG)\.WATERMARKED\.JPG$',
           caseSensitive: false);
 
-  static bool _isManagedCapture(String path) {
-    final name = path.split(Platform.pathSeparator).last;
-    return _cameraPhoto.hasMatch(name) ||
-        _cameraVideo.hasMatch(name) ||
-        _watermarkedPhoto.hasMatch(name);
-  }
-
-  /// Returns how many files were deleted. Never throws.
+  /// Returns how many safe intermediate files were deleted. Never throws.
   Future<int> sweep() async {
     try {
       final directory = await _temporaryDirectory();
@@ -43,10 +29,23 @@ class TempMediaCleanup {
       final cutoff = _clock().subtract(minAge);
       var deleted = 0;
       await for (final entity in directory.list(followLinks: false)) {
-        if (entity is! File || !_isManagedCapture(entity.path)) continue;
+        if (entity is! File) continue;
+        final name = entity.uri.pathSegments.last;
+        if (!_watermarkedPhoto.hasMatch(name)) continue;
+
+        // The derived image is disposable only while its original camera
+        // capture is still present. If it is the only copy, preserve it.
+        final originalPath = entity.path.substring(
+          0,
+          entity.path.length - '.watermarked.jpg'.length,
+        );
+        final original = File(originalPath);
         try {
-          final stat = await entity.stat();
-          if (stat.modified.isAfter(cutoff)) continue;
+          final derivedStat = await entity.stat();
+          if (derivedStat.modified.isAfter(cutoff)) continue;
+          if (!await original.exists()) continue;
+          final originalStat = await original.stat();
+          if (originalStat.modified.isAfter(cutoff)) continue;
           await entity.delete();
           deleted++;
         } on FileSystemException {
