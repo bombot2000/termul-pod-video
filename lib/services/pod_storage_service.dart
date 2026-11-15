@@ -210,6 +210,12 @@ class PodStorageService {
           path,
         );
     }
+    // Keep an explicit terminal path for SDK/analyzer versions that do not
+    // promote this platform enum switch to an exhaustive return.
+    throw FileSystemException(
+      'Tipe file dokumentasi tidak dikenal untuk dipindahkan.',
+      path,
+    );
   }
 
   Future<void> _deleteEntity(String path) async {
