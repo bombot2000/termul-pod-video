@@ -13,6 +13,13 @@ import 'services/pod_storage_service.dart';
 import 'services/temp_media_cleanup.dart';
 import 'screens/watermark_settings_section.dart';
 
+String formatPodCoordinates(double? latitude, double? longitude) {
+  if (latitude == null || longitude == null) {
+    return 'Koordinat GPS tidak tersedia';
+  }
+  return '${latitude.toStringAsFixed(6)}, ${longitude.toStringAsFixed(6)}';
+}
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   // Remove stale capture leftovers from the cache; never blocks startup.
@@ -513,10 +520,8 @@ class _HistoryPageState extends State<_HistoryPage> {
             final record = records[index];
             final isVideo = record.type == 'video';
             final file = File(record.path);
-            final coordinates = record.latitude == null ||
-                    record.longitude == null
-                ? 'Koordinat GPS tidak tersedia'
-                : '${record.latitude!.toStringAsFixed(6)}, ${record.longitude!.toStringAsFixed(6)}';
+            final coordinates =
+                formatPodCoordinates(record.latitude, record.longitude);
             final addressLine = record.address?.trim().isNotEmpty == true
                 ? record.address!
                 : 'Alamat lokasi tidak tersedia';
