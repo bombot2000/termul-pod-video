@@ -277,6 +277,10 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
         if (mounted) { setState(() => _recording = true); }
       } on CameraException catch (exception) {
         _showMessage(_cameraErrorMessage(exception));
+      } catch (exception) {
+        // Camera plugins can also fail with PlatformException or StateError.
+        // Always surface the failure instead of leaving an unhandled Future.
+        _showMessage('Gagal memulai rekaman: $exception');
       } finally {
         _startingRecording = false;
         if (mounted) setState(() {});
