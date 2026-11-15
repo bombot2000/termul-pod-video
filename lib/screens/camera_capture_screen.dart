@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:ui' show FontFeature;
 
 import 'package:camera/camera.dart';
 import 'package:material_ui/material_ui.dart';
@@ -373,10 +372,12 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
     } catch (exception) {
       if (_videoMode && !controller.value.isRecordingVideo) {
         _stopRecordingTimer();
-        if (mounted) setState(() {
-          _recording = false;
-          _recordingStartedAt = null;
-        });
+        if (mounted) {
+          setState(() {
+            _recording = false;
+            _recordingStartedAt = null;
+          });
+        }
       }
       _showMessage('Gagal menyimpan dokumentasi: $exception');
     } finally {
