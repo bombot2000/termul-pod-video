@@ -50,7 +50,6 @@ void main() {
     );
     expect(find.textContaining('tersimpan di perangkat'), findsOneWidget);
   });
-}
 
   testWidgets('history tolerates a record with only one GPS coordinate',
       (tester) async {
@@ -74,3 +73,5 @@ void main() {
     expect(find.text('Koordinat GPS tidak tersedia'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+}
