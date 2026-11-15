@@ -42,6 +42,11 @@ void main() {
     final secondSource = File('${root.path}/second_camera_source.jpg');
     await secondSource.writeAsBytes([1, 3, 5, 7]);
 
+    // Different service instances are used by separate screens/routes.
+    // Their writes must still share the same in-process serialization queue.
+    final otherStorage = PodStorageService(
+      documentsDirectoryProvider: () async => root,
+    );
     final saved = await Future.wait([
       storage.saveMedia(
         sourcePath: source.path,
@@ -49,7 +54,7 @@ void main() {
         createdAt: createdAt,
         moveSource: true,
       ),
-      storage.saveMedia(
+      otherStorage.saveMedia(
         sourcePath: secondSource.path,
         type: 'photo',
         createdAt: createdAt,
