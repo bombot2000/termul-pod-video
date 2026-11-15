@@ -82,6 +82,26 @@ void main() {
     expect(output.height, 240);
   });
 
+  test('failed render removes stale derivative and preserves raw capture',
+      () async {
+    final invalidSource = File('${temporaryDirectory.path}/invalid.jpg');
+    await invalidSource.writeAsBytes([1, 2, 3, 4]);
+    final staleOutput = File('${invalidSource.path}.watermarked.jpg');
+    await staleOutput.writeAsBytes([9, 9, 9]);
+
+    await expectLater(
+      PhotoWatermarkService().createWatermarkedCopy(
+        sourcePath: invalidSource.path,
+        capturedAt: DateTime.parse('2026-11-14T09:30:00'),
+      ),
+      throwsA(isA<FormatException>()),
+    );
+
+    expect(await invalidSource.exists(), isTrue);
+    expect(await invalidSource.readAsBytes(), [1, 2, 3, 4]);
+    expect(await staleOutput.exists(), isFalse);
+  });
+
   test('watermark remains possible when GPS is unavailable', () async {
     final outputPath = await PhotoWatermarkService().createWatermarkedCopy(
       sourcePath: sourceFile.path,
