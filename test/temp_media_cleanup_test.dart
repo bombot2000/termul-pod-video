@@ -32,6 +32,8 @@ void main() {
     final oldWatermark =
         create('CAP2.jpg.watermarked.jpg', const Duration(hours: 9));
     final recent = create('CAP3.jpg', const Duration(hours: 1));
+    final unrelatedPhoto = create('holiday.jpg', const Duration(days: 2));
+    final unrelatedVideo = create('export.mp4', const Duration(days: 2));
 
     final deleted = await cleanup.sweep();
 
@@ -40,16 +42,22 @@ void main() {
     expect(oldVideo.existsSync(), isFalse);
     expect(oldWatermark.existsSync(), isFalse);
     expect(recent.existsSync(), isTrue);
+    expect(unrelatedPhoto.existsSync(), isTrue);
+    expect(unrelatedVideo.existsSync(), isTrue);
   });
 
   test('leaves other file types and subdirectories alone', () async {
     final note = create('notes.txt', const Duration(days: 3));
-    final nested = create('sub/old.jpg', const Duration(days: 3));
+    final unrelatedPhoto = create('holiday.jpg', const Duration(days: 3));
+    final unrelatedVideo = create('export.mp4', const Duration(days: 3));
+    final nested = create('sub/CAP_OLD.jpg', const Duration(days: 3));
 
     final deleted = await cleanup.sweep();
 
     expect(deleted, 0);
     expect(note.existsSync(), isTrue);
+    expect(unrelatedPhoto.existsSync(), isTrue);
+    expect(unrelatedVideo.existsSync(), isTrue);
     expect(nested.existsSync(), isTrue);
   });
 
