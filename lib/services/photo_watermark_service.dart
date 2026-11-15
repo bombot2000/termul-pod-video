@@ -31,18 +31,41 @@ class PhotoWatermarkService {
     final outputPath = '${source.path}.watermarked.jpg';
 
     final layout = await PodWatermarkSettingsService().loadLayout();
-    await Isolate.run(
-      () => _renderWatermark(
-        sourcePath: source.path,
-        outputPath: outputPath,
-        timestamp: timestamp,
-        gpsLine: gpsLine,
-        accuracyLine: accuracyLine,
-        address: address,
-        layout: layout.name,
-      ),
-    );
-    return outputPath;
+    try {
+      await Isolate.run(
+        () => _renderWatermark(
+          sourcePath: source.path,
+          outputPath: outputPath,
+          timestamp: timestamp,
+          gpsLine: gpsLine,
+          accuracyLine: accuracyLine,
+          address: address,
+          layout: layout.name,
+        ),
+      );
+
+      final output = File(outputPath);
+      if (output.path == source.path ||
+          !await output.exists() ||
+          await output.length() == 0) {
+        throw const FileSystemException(
+          'Hasil foto ber-watermark tidak valid.',
+        );
+      }
+      return outputPath;
+    } catch (_) {
+      // A previous/interrupted render must not leave a stale derivative that
+      // could later be mistaken for the current capture's watermark.
+      try {
+        final output = File(outputPath);
+        if (output.path != source.path && await output.exists()) {
+          await output.delete();
+        }
+      } on FileSystemException {
+        // Keep the original capture untouched; cleanup can retry later.
+      }
+      rethrow;
+    }
   }
 }
 
