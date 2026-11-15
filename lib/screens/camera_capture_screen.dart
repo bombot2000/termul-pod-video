@@ -11,6 +11,7 @@ import '../services/pod_location_tracker.dart';
 import '../services/photo_watermark_service.dart';
 import '../services/video_watermark_service.dart';
 import '../services/pod_storage_service.dart';
+import '../services/camera_lifecycle_recovery.dart';
 
 class CameraCaptureScreen extends StatefulWidget {
   const CameraCaptureScreen({super.key, this.initialVideoMode = false});
@@ -43,6 +44,8 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
   // A pause during media processing must invalidate the old camera session.
   // If the app resumes before processing finishes, restart after the save.
   bool _cameraNeedsRestartAfterSave = false;
+  final CameraLifecycleRecovery _cameraLifecycleRecovery =
+      CameraLifecycleRecovery();
   bool _startingRecording = false;
   int _cameraInitGeneration = 0;
 
@@ -141,7 +144,10 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
         _cameraNeedsRestartAfterSave = true;
         return;
       }
-      if (_startingRecording) return;
+      if (_startingRecording) {
+        _cameraLifecycleRecovery.deferRestartUntilRecordingStartCompletes();
+        return;
+      }
       final controller = _controller;
       if (_recording && !_saving && controller != null &&
           controller.value.isRecordingVideo) {
@@ -157,6 +163,12 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
 
     if (state == AppLifecycleState.resumed) {
       _appPaused = false;
+      if (_startingRecording) {
+        // The plugin may complete with a controller invalidated by the pause.
+        // Defer recovery until startVideoRecording releases its operation.
+        _cameraLifecycleRecovery.deferRestartUntilRecordingStartCompletes();
+        return;
+      }
       if (_saving) {
         // The current controller may have been invalidated by Android while
         // backgrounded. Defer reopening until the in-flight save releases it.
@@ -250,18 +262,26 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
         _recordingFix = fixFuture;
         _recordingAddress = fixFuture.then(_addressFor);
         if (mounted) { setState(() => _recording = true); }
-        if (_appPaused) {
-          // The pause callback may have arrived while startVideoRecording()
-          // was pending. Finalize the clip now that recording has actually
-          // started, rather than disposing the active camera underneath it.
-          unawaited(_finishRecordingAndReleaseCamera(controller));
-        }
       } on CameraException catch (exception) {
         _showMessage(_cameraErrorMessage(exception));
       } finally {
         _startingRecording = false;
         if (mounted) setState(() {});
-        if (_appPaused && !_recording && identical(_controller, controller)) {
+        final restartAfterStart =
+            _cameraLifecycleRecovery.consumeRestartAfterRecordingStart();
+        if (restartAfterStart && identical(_controller, controller)) {
+          if (_recording && controller.value.isRecordingVideo) {
+            // Persist a clip whose start overlapped an app lifecycle change.
+            unawaited(_finishRecordingAndReleaseCamera(controller));
+          } else {
+            _controller = null;
+            await controller.dispose();
+            if (!_appPaused && mounted) {
+              unawaited(_initializeCamera());
+            }
+          }
+        } else if (_appPaused && !_recording &&
+            identical(_controller, controller)) {
           _controller = null;
           await controller.dispose();
         }
