@@ -66,6 +66,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
         _error = null;
       });
     }
+    CameraController? pendingController;
     try {
       final cameras = await availableCameras();
       if (!mounted || _appPaused || generation != _cameraInitGeneration) {
@@ -83,15 +84,18 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
         ResolutionPreset.veryHigh,
         enableAudio: true,
       );
+      // Keep ownership until initialization succeeds and the controller is
+      // attached to the screen. If initialize() throws, finally disposes it.
+      pendingController = controller;
       await controller.initialize();
       if (!mounted || _appPaused || generation != _cameraInitGeneration) {
-        await controller.dispose();
         return;
       }
       setState(() {
         _controller = controller;
         _initializing = false;
       });
+      pendingController = null;
       // Location is requested only after the camera is up, so the two
       // permission dialogs never stack, and GPS is warm before the shutter.
       unawaited(_locationTracker.start());
@@ -108,6 +112,15 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
           _error = 'Kamera tidak dapat dibuka: $exception';
           _initializing = false;
         });
+      }
+    } finally {
+      final controller = pendingController;
+      if (controller != null) {
+        try {
+          await controller.dispose();
+        } catch (_) {
+          // Best effort: initialization already failed or was invalidated.
+        }
       }
     }
   }
