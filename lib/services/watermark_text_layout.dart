@@ -8,7 +8,7 @@ List<String> wrapWatermarkText(
     return const <String>[];
   }
 
-  final words = value.trim().split(RegExp(r'\\s+'));
+  final words = value.trim().split(RegExp(r'\s+'));
   final lines = <String>[];
   var current = '';
   var truncated = false;
