@@ -26,30 +26,47 @@ void main() {
     return file;
   }
 
-  test('deletes old captures and keeps recent ones', () async {
+  test('deletes only old derived photo when its raw capture remains', () async {
     final oldPhoto = create('CAP1.jpg', const Duration(hours: 7));
     final oldVideo = create('REC1.mp4', const Duration(hours: 8));
-    final oldWatermark =
-        create('CAP2.jpg.watermarked.jpg', const Duration(hours: 9));
+    final watermarkSource = create('CAP2.jpg', const Duration(hours: 9));
+    final oldWatermark = create(
+      'CAP2.jpg.watermarked.jpg',
+      const Duration(hours: 9),
+    );
+    final orphanWatermark = create(
+      'CAP_ORPHAN.jpg.watermarked.jpg',
+      const Duration(hours: 9),
+    );
     final recent = create('CAP3.jpg', const Duration(hours: 1));
 
     final deleted = await cleanup.sweep();
 
-    expect(deleted, 3);
-    expect(oldPhoto.existsSync(), isFalse);
-    expect(oldVideo.existsSync(), isFalse);
+    expect(deleted, 1);
+    expect(oldPhoto.existsSync(), isTrue);
+    expect(oldVideo.existsSync(), isTrue);
+    expect(watermarkSource.existsSync(), isTrue);
     expect(oldWatermark.existsSync(), isFalse);
+    expect(orphanWatermark.existsSync(), isTrue);
     expect(recent.existsSync(), isTrue);
   });
 
-  test('leaves other file types and subdirectories alone', () async {
+  test('leaves unrelated files and subdirectories alone', () async {
     final note = create('notes.txt', const Duration(days: 3));
-    final nested = create('sub/old.jpg', const Duration(days: 3));
+    final unrelatedPhoto = create('holiday.jpg', const Duration(days: 3));
+    final unrelatedVideo = create('export.mp4', const Duration(days: 3));
+    final nested = create(
+      'sub/CAP_OLD.jpg.watermarked.jpg',
+      const Duration(days: 3),
+    );
+    create('sub/CAP_OLD.jpg', const Duration(days: 3));
 
     final deleted = await cleanup.sweep();
 
     expect(deleted, 0);
     expect(note.existsSync(), isTrue);
+    expect(unrelatedPhoto.existsSync(), isTrue);
+    expect(unrelatedVideo.existsSync(), isTrue);
     expect(nested.existsSync(), isTrue);
   });
 
