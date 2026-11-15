@@ -20,7 +20,7 @@ class PodStorageService {
   // Serialize every read-modify-write transaction. SharedPreferences does not
   // provide an atomic append, so concurrent captures/gallery updates/deletes
   // could otherwise overwrite one another's record list.
-  Future<void> _writeQueue = Future<void>.value();
+  static Future<void> _writeQueue = Future<void>.value();
 
   Future<T> _serializeWrite<T>(Future<T> Function() action) async {
     final previous = _writeQueue;
