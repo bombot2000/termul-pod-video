@@ -34,21 +34,30 @@ class PodStorageService {
     }
   }
 
+  Map<String, dynamic>? _decodeRawRecord(String value) {
+    try {
+      final decoded = jsonDecode(value);
+      return decoded is Map<String, dynamic> ? decoded : null;
+    } on FormatException {
+      return null;
+    } on TypeError {
+      return null;
+    }
+  }
+
+  List<String> _rawRecords(SharedPreferences preferences) =>
+      preferences.getStringList(_recordsKey) ?? const <String>[];
+
   Future<List<PodMediaRecord>> getRecords() async {
     final preferences = await SharedPreferences.getInstance();
-    final values = preferences.getStringList(_recordsKey) ?? const <String>[];
     final records = <PodMediaRecord>[];
-    for (final value in values) {
+    for (final value in _rawRecords(preferences)) {
+      final json = _decodeRawRecord(value);
+      if (json == null) continue;
       try {
-        records.add(
-          PodMediaRecord.fromJson(
-            jsonDecode(value) as Map<String, dynamic>,
-          ),
-        );
-      } on FormatException {
-        // Preserve valid entries if one persisted entry is damaged.
+        records.add(PodMediaRecord.fromJson(json));
       } on TypeError {
-        // Ignore entries written by an incompatible older schema.
+        // Ignore entries written by an incompatible schema.
       }
     }
     records.sort((a, b) => b.createdAt.compareTo(a.createdAt));
@@ -126,12 +135,14 @@ class PodStorageService {
 
       try {
         final preferences = await SharedPreferences.getInstance();
-        final records = await getRecords();
-        records.insert(0, record);
-        final saved = await preferences.setStringList(
-          _recordsKey,
-          records.map((item) => jsonEncode(item.toJson())).toList(),
-        );
+        // Add the new entry without parsing/re-encoding older entries. This
+        // keeps fields from newer app versions and damaged-but-preservable
+        // records intact when an older app saves another capture.
+        final values = <String>[
+          jsonEncode(record.toJson()),
+          ..._rawRecords(preferences),
+        ];
+        final saved = await preferences.setStringList(_recordsKey, values);
         if (!saved) {
           throw const FileSystemException(
             'Indeks dokumentasi tidak berhasil disimpan.',
@@ -170,23 +181,32 @@ class PodStorageService {
   ) {
     return _serializeWrite(() async {
       final preferences = await SharedPreferences.getInstance();
-      final records = await getRecords();
-      final index = records.indexWhere((item) => item.path == record.path);
+      final values = _rawRecords(preferences);
+      final index = values.indexWhere((value) {
+        return _decodeRawRecord(value)?['path'] == record.path;
+      });
       if (index < 0) {
         throw const FileSystemException(
           'Dokumentasi tidak ditemukan di riwayat.',
         );
       }
-      final updated = record.copyWith(gallerySaved: saved);
-      records[index] = updated;
-      final persisted = await preferences.setStringList(
-        _recordsKey,
-        records.map((item) => jsonEncode(item.toJson())).toList(),
-      );
+
+      // Update only the requested property in the original JSON object. All
+      // fields not understood by this app version remain untouched.
+      final json = _decodeRawRecord(values[index]);
+      if (json == null) {
+        throw const FileSystemException(
+          'Data dokumentasi tidak dapat dibaca.',
+        );
+      }
+      json['gallerySaved'] = saved;
+      values[index] = jsonEncode(json);
+
+      final persisted = await preferences.setStringList(_recordsKey, values);
       if (!persisted) {
         throw const FileSystemException('Status Galeri gagal disimpan.');
       }
-      return updated;
+      return record.copyWith(gallerySaved: saved);
     });
   }
 
@@ -243,13 +263,11 @@ class PodStorageService {
   Future<void> deleteRecord(PodMediaRecord record) {
     return _serializeWrite(() async {
       final preferences = await SharedPreferences.getInstance();
-      // Preserve the exact serialized entries so a failed media deletion can
-      // restore fields written by newer/older app versions without data loss.
-      final previousValues =
-          preferences.getStringList(_recordsKey) ?? const <String>[];
-      final records = await getRecords();
-      final remaining = records
-          .where((item) => item.path != record.path)
+      // Keep the raw entries for exact rollback and preserve every unrelated
+      // record, including fields and entries this app version cannot parse.
+      final previousValues = _rawRecords(preferences);
+      final remainingValues = previousValues
+          .where((value) => _decodeRawRecord(value)?['path'] != record.path)
           .toList(growable: false);
 
       // Move the evidence to a sibling quarantine path first. A same-directory
@@ -262,7 +280,7 @@ class PodStorageService {
       try {
         saved = await preferences.setStringList(
           _recordsKey,
-          remaining.map((item) => jsonEncode(item.toJson())).toList(),
+          remainingValues,
         );
       } catch (_) {
         if (moved != null) {

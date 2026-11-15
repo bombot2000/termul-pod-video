@@ -111,6 +111,101 @@ void main() {
     expect(restored.gallerySaved, isTrue);
   });
 
+  test('saving another capture preserves unknown fields in older entries',
+      () async {
+    final first = await storage.saveMedia(
+      sourcePath: source.path,
+      type: 'photo',
+      createdAt: createdAt,
+    );
+    final preferences = await SharedPreferences.getInstance();
+    final firstJson = <String, dynamic>{
+      ...first.toJson(),
+      'futureField': <String, dynamic>{'preserve': true},
+    };
+    await preferences.setStringList(
+      'termul_pod_media_records_v1',
+      [jsonEncode(firstJson)],
+    );
+
+    final secondSource = File('${root.path}/second_camera_source.jpg');
+    await secondSource.writeAsBytes([1, 2, 3]);
+    await storage.saveMedia(
+      sourcePath: secondSource.path,
+      type: 'photo',
+      createdAt: createdAt.add(const Duration(seconds: 1)),
+    );
+
+    final values = preferences.getStringList('termul_pod_media_records_v1')!;
+    final retained = values
+        .map((value) => jsonDecode(value) as Map<String, dynamic>)
+        .singleWhere((json) => json['path'] == first.path);
+    expect(retained['futureField'], {'preserve': true});
+  });
+
+  test('gallery status update preserves unknown fields', () async {
+    final record = await storage.saveMedia(
+      sourcePath: source.path,
+      type: 'photo',
+      createdAt: createdAt,
+    );
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setStringList(
+      'termul_pod_media_records_v1',
+      [
+        jsonEncode(<String, dynamic>{
+          ...record.toJson(),
+          'futureField': <String, dynamic>{'preserve': true},
+        }),
+      ],
+    );
+
+    await storage.updateGalleryStatus(record, true);
+
+    final json = jsonDecode(
+      preferences.getStringList('termul_pod_media_records_v1')!.single,
+    ) as Map<String, dynamic>;
+    expect(json['gallerySaved'], isTrue);
+    expect(json['futureField'], {'preserve': true});
+  });
+
+  test('deleting one record preserves unknown fields in remaining records',
+      () async {
+    final first = await storage.saveMedia(
+      sourcePath: source.path,
+      type: 'photo',
+      createdAt: createdAt,
+    );
+    final secondSource = File('${root.path}/second_camera_source.jpg');
+    await secondSource.writeAsBytes([1, 2, 3]);
+    final second = await storage.saveMedia(
+      sourcePath: secondSource.path,
+      type: 'photo',
+      createdAt: createdAt.add(const Duration(seconds: 1)),
+    );
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setStringList(
+      'termul_pod_media_records_v1',
+      [
+        jsonEncode(<String, dynamic>{
+          ...second.toJson(),
+          'futureField': <String, dynamic>{'preserve': true},
+        }),
+        jsonEncode(first.toJson()),
+      ],
+    );
+
+    await storage.deleteRecord(first);
+
+    final values = preferences.getStringList('termul_pod_media_records_v1')!;
+    expect(values, hasLength(1));
+    final retained = jsonDecode(values.single) as Map<String, dynamic>;
+    expect(retained['path'], second.path);
+    expect(retained['futureField'], {'preserve': true});
+    expect(await File(second.path).exists(), isTrue);
+    expect(await File(first.path).exists(), isFalse);
+  });
+
   test('copyWith changes only the gallery flag', () {
     final original = PodMediaRecord(
       path: '/private/pod_media/a.jpg',
@@ -195,5 +290,4 @@ void main() {
     expect(await evidenceDirectory.exists(), isTrue);
     expect(await evidenceFile.readAsBytes(), [4, 5, 6]);
   });
-
 }
