@@ -203,8 +203,12 @@ class PodStorageService {
         return Link(path).rename(destination);
       case FileSystemEntityType.notFound:
         return null;
-      case FileSystemEntityType.other:
-        throw FileSystemException('Tipe file dokumentasi tidak didukung.', path);
+      case FileSystemEntityType.pipe:
+      case FileSystemEntityType.unixDomainSock:
+        throw FileSystemException(
+          'Tipe file dokumentasi tidak didukung untuk dipindahkan.',
+          path,
+        );
     }
   }
 
@@ -221,8 +225,12 @@ class PodStorageService {
         return;
       case FileSystemEntityType.notFound:
         return;
-      case FileSystemEntityType.other:
-        throw FileSystemException('Tipe file dokumentasi tidak didukung.', path);
+      case FileSystemEntityType.pipe:
+      case FileSystemEntityType.unixDomainSock:
+        throw FileSystemException(
+          'Tipe file dokumentasi tidak didukung untuk dihapus.',
+          path,
+        );
     }
   }
 
