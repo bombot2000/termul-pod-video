@@ -60,15 +60,13 @@ void main() {
     final records = await storage.getRecords();
     expect(records, hasLength(2));
     expect(saved.map((record) => record.path).toSet(), hasLength(2));
-    expect(
-      (await Future.wait(saved.map((record) => File(record.path).readAsBytes())))
-          .map((bytes) => bytes.toList())
-          .toSet(),
-      {
-        [9, 8, 7, 6],
-        [1, 3, 5, 7],
-      },
+    final contents = await Future.wait(
+      saved.map((record) async {
+        final bytes = await File(record.path).readAsBytes();
+        return bytes.join(',');
+      }),
     );
+    expect(contents.toSet(), {'9,8,7,6', '1,3,5,7'});
     expect(await source.exists(), isFalse);
     expect(await secondSource.exists(), isFalse);
   });
