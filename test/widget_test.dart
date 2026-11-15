@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:material_ui/material_ui.dart' show ListView;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -49,3 +51,26 @@ void main() {
     expect(find.textContaining('tersimpan di perangkat'), findsOneWidget);
   });
 }
+
+  testWidgets('history tolerates a record with only one GPS coordinate',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'termul_pod_media_records_v1': [
+        jsonEncode({
+          'path': '/missing/pod_photo.jpg',
+          'type': 'photo',
+          'createdAt': DateTime.utc(2026, 11, 15).toIso8601String(),
+          'latitude': -7.9826,
+          'longitude': null,
+        }),
+      ],
+    });
+
+    await tester.pumpWidget(const TermulPodApp());
+    await tester.tap(find.text('Riwayat'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Foto POD'), findsOneWidget);
+    expect(find.text('Koordinat GPS tidak tersedia'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
