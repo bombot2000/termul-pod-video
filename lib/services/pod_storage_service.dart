@@ -190,24 +190,120 @@ class PodStorageService {
     });
   }
 
+  Future<FileSystemEntity?> _renameEntity(
+    String path,
+    String destination,
+  ) async {
+    switch (await FileSystemEntity.type(path)) {
+      case FileSystemEntityType.file:
+        return File(path).rename(destination);
+      case FileSystemEntityType.directory:
+        return Directory(path).rename(destination);
+      case FileSystemEntityType.link:
+        return Link(path).rename(destination);
+      case FileSystemEntityType.notFound:
+        return null;
+      case FileSystemEntityType.pipe:
+      case FileSystemEntityType.unixDomainSock:
+        throw FileSystemException(
+          'Tipe file dokumentasi tidak didukung untuk dipindahkan.',
+          path,
+        );
+    }
+    // Keep an explicit terminal path for SDK/analyzer versions that do not
+    // promote this platform enum switch to an exhaustive return.
+    throw FileSystemException(
+      'Tipe file dokumentasi tidak dikenal untuk dipindahkan.',
+      path,
+    );
+  }
+
+  Future<void> _deleteEntity(String path) async {
+    switch (await FileSystemEntity.type(path)) {
+      case FileSystemEntityType.file:
+        await File(path).delete();
+        return;
+      case FileSystemEntityType.directory:
+        await Directory(path).delete();
+        return;
+      case FileSystemEntityType.link:
+        await Link(path).delete();
+        return;
+      case FileSystemEntityType.notFound:
+        return;
+      case FileSystemEntityType.pipe:
+      case FileSystemEntityType.unixDomainSock:
+        throw FileSystemException(
+          'Tipe file dokumentasi tidak didukung untuk dihapus.',
+          path,
+        );
+    }
+  }
+
   Future<void> deleteRecord(PodMediaRecord record) {
     return _serializeWrite(() async {
       final preferences = await SharedPreferences.getInstance();
       final records = await getRecords();
-      records.removeWhere((item) => item.path == record.path);
-      final saved = await preferences.setStringList(
-        _recordsKey,
-        records.map((item) => jsonEncode(item.toJson())).toList(),
-      );
+      final remaining = records
+          .where((item) => item.path != record.path)
+          .toList(growable: false);
+
+      // Move the evidence to a sibling quarantine path first. A same-directory
+      // rename is reversible, unlike deleting the file before the index update.
+      final quarantinePath =
+          '${record.path}.deleting-${DateTime.now().microsecondsSinceEpoch}';
+      final moved = await _renameEntity(record.path, quarantinePath);
+
+      bool saved;
+      try {
+        saved = await preferences.setStringList(
+          _recordsKey,
+          remaining.map((item) => jsonEncode(item.toJson())).toList(),
+        );
+      } catch (_) {
+        if (moved != null) {
+          await _renameEntity(quarantinePath, record.path);
+        }
+        rethrow;
+      }
       if (!saved) {
+        if (moved != null) {
+          await _renameEntity(quarantinePath, record.path);
+        }
         throw const FileSystemException(
-          'Riwayat tidak berhasil diperbarui. File tidak dihapus.',
+          'Riwayat tidak berhasil diperbarui. File dokumentasi dipulihkan.',
         );
       }
 
-      final file = File(record.path);
-      if (await file.exists()) {
-        await file.delete();
+      if (moved == null) return;
+      try {
+        await _deleteEntity(quarantinePath);
+      } catch (error) {
+        // If the media cannot be deleted, restore both its original path and
+        // history entry so the user does not lose access to the evidence.
+        await _renameEntity(quarantinePath, record.path);
+        bool restored;
+        try {
+          restored = await preferences.setStringList(
+            _recordsKey,
+            records.map((item) => jsonEncode(item.toJson())).toList(),
+          );
+        } catch (restoreError) {
+          // Keep the evidence even if the index itself cannot be restored.
+          await _renameEntity(record.path, quarantinePath);
+          throw FileSystemException(
+            'File gagal dihapus dan riwayat gagal dipulihkan: $restoreError. Bukti disimpan di $quarantinePath',
+            quarantinePath,
+          );
+        }
+        if (!restored) {
+          await _renameEntity(record.path, quarantinePath);
+          throw FileSystemException(
+            'File gagal dihapus dan riwayat gagal dipulihkan. Bukti disimpan di $quarantinePath ($error)',
+            quarantinePath,
+          );
+        }
+        rethrow;
       }
     });
   }

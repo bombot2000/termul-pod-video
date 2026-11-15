@@ -148,4 +148,32 @@ void main() {
     expect(restored.locationClockOffsetSeconds, isNull);
     expect(restored.latitude, -7.9826);
   });
+
+  test('failed media deletion restores the history record and evidence', () async {
+    final record = await storage.saveMedia(
+      sourcePath: source.path,
+      type: 'photo',
+      createdAt: createdAt,
+    );
+
+    // A non-empty directory at the media path forces the final delete to fail
+    // after the reversible quarantine rename has succeeded.
+    await File(record.path).delete();
+    final evidenceDirectory = Directory(record.path);
+    await evidenceDirectory.create();
+    final evidenceFile = File('${evidenceDirectory.path}/evidence.bin');
+    await evidenceFile.writeAsBytes([4, 5, 6]);
+
+    await expectLater(
+      storage.deleteRecord(record),
+      throwsA(isA<FileSystemException>()),
+    );
+
+    final restoredRecords = await storage.getRecords();
+    expect(restoredRecords, hasLength(1));
+    expect(restoredRecords.single.path, record.path);
+    expect(await evidenceDirectory.exists(), isTrue);
+    expect(await evidenceFile.readAsBytes(), [4, 5, 6]);
+  });
+
 }
