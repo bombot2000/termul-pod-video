@@ -3,7 +3,7 @@ import 'package:image/image.dart' as img;
 import 'package:termul_pod_video/services/video_watermark_service.dart';
 
 void main() {
-  const capturedAt = DateTime(2026, 11, 15, 9, 30, 0);
+  final capturedAt = DateTime(2026, 11, 15, 9, 30, 0);
 
   test('renders valid PNG overlays for every supported layout', () async {
     for (final layout in ['classic', 'compact', 'header']) {
