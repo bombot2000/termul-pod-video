@@ -13,6 +13,13 @@ import 'services/pod_storage_service.dart';
 import 'services/temp_media_cleanup.dart';
 import 'screens/watermark_settings_section.dart';
 
+String formatPodCoordinates(double? latitude, double? longitude) {
+  if (latitude == null || longitude == null) {
+    return 'Koordinat GPS tidak tersedia';
+  }
+  return '${latitude.toStringAsFixed(6)}, ${longitude.toStringAsFixed(6)}';
+}
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   // Remove stale capture leftovers from the cache; never blocks startup.
@@ -452,9 +459,23 @@ class _HistoryPageState extends State<_HistoryPage> {
       ),
     );
     if (confirmed != true) return;
-    await PodStorageService().deleteRecord(record);
-    if (!mounted) return;
-    setState(() => _records = PodStorageService().getRecords());
+    try {
+      await PodStorageService().deleteRecord(record);
+      if (!mounted) return;
+      setState(() => _records = PodStorageService().getRecords());
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Dokumentasi berhasil dihapus.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      // Storage may have restored the record after a failed filesystem delete.
+      setState(() => _records = PodStorageService().getRecords());
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Penghapusan dokumentasi mengalami kendala: $error'),
+        ),
+      );
+    }
   }
 
   @override
@@ -500,9 +521,8 @@ class _HistoryPageState extends State<_HistoryPage> {
             final record = records[index];
             final isVideo = record.type == 'video';
             final file = File(record.path);
-            final coordinates = record.latitude == null
-                ? 'Koordinat GPS tidak tersedia'
-                : '${record.latitude!.toStringAsFixed(6)}, ${record.longitude!.toStringAsFixed(6)}';
+            final coordinates =
+                formatPodCoordinates(record.latitude, record.longitude);
             final addressLine = record.address?.trim().isNotEmpty == true
                 ? record.address!
                 : 'Alamat lokasi tidak tersedia';
