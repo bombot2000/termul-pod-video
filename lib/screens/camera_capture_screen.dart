@@ -40,6 +40,9 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
   Future<PodLocationFix?>? _recordingFix;
   Future<String?>? _recordingAddress;
   bool _appPaused = false;
+  // A pause during media processing must invalidate the old camera session.
+  // If the app resumes before processing finishes, restart after the save.
+  bool _cameraNeedsRestartAfterSave = false;
   bool _startingRecording = false;
   int _cameraInitGeneration = 0;
 
@@ -134,7 +137,11 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
       unawaited(_locationTracker.stop());
       // Do not dispose a controller while a camera plugin operation or the
       // capture/save pipeline still owns it. The operation releases it later.
-      if (_saving || _startingRecording) return;
+      if (_saving) {
+        _cameraNeedsRestartAfterSave = true;
+        return;
+      }
+      if (_startingRecording) return;
       final controller = _controller;
       if (_recording && !_saving && controller != null &&
           controller.value.isRecordingVideo) {
@@ -150,7 +157,14 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
 
     if (state == AppLifecycleState.resumed) {
       _appPaused = false;
-      if (_controller == null && !_initializing && !_saving) {
+      if (_saving) {
+        // The current controller may have been invalidated by Android while
+        // backgrounded. Defer reopening until the in-flight save releases it.
+        _cameraNeedsRestartAfterSave = true;
+        return;
+      }
+      _cameraNeedsRestartAfterSave = false;
+      if (_controller == null && !_initializing) {
         unawaited(_initializeCamera());
       }
     }
@@ -382,12 +396,16 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
       _showMessage('Gagal menyimpan dokumentasi: $exception');
     } finally {
       if (mounted) { setState(() => _saving = false); }
-      if (_appPaused) {
+      if (_appPaused || _cameraNeedsRestartAfterSave) {
         // Lifecycle pause deferred disposal while capture/save was in flight.
         // Release only after the media has been safely persisted (or failed).
         final pausedController = _controller;
         _controller = null;
         if (pausedController != null) await pausedController.dispose();
+        if (!_appPaused && _cameraNeedsRestartAfterSave && mounted) {
+          _cameraNeedsRestartAfterSave = false;
+          unawaited(_initializeCamera());
+        }
       }
     }
   }
