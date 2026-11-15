@@ -2,12 +2,12 @@ import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
 
-/// Removes stale capture leftovers from the app cache directory.
+/// Removes stale raw camera captures and their derived photo-watermark copies.
 ///
-/// The camera plugin writes raw photos/videos there and the watermark steps
-/// write derived copies. Normal captures clean up after themselves; this sweep
-/// catches what a crash, a kill, or an older build left behind. Only top-level
-/// image/video files older than [minAge] are touched.
+/// Normal captures clean up after themselves. This sweep catches only files
+/// whose names match the camera plugin's capture prefixes (CAP/REC), plus
+/// photo watermark copies derived from CAP JPEGs. Unrelated cache images/videos
+/// are deliberately left untouched.
 class TempMediaCleanup {
   TempMediaCleanup({
     Future<Directory> Function()? temporaryDirectory,
@@ -20,7 +20,20 @@ class TempMediaCleanup {
   final DateTime Function() _clock;
   final Duration minAge;
 
-  static const _extensions = ['.jpg', '.jpeg', '.mp4'];
+  static final RegExp _cameraPhoto =
+      RegExp(r'^CAP[^/\\]*\.(?:JPG|JPEG)$', caseSensitive: false);
+  static final RegExp _cameraVideo =
+      RegExp(r'^REC[^/\\]*\.MP4$', caseSensitive: false);
+  static final RegExp _watermarkedPhoto =
+      RegExp(r'^CAP[^/\\]*\.(?:JPG|JPEG)\.WATERMARKED\.JPG$',
+          caseSensitive: false);
+
+  static bool _isManagedCapture(String path) {
+    final name = path.split(Platform.pathSeparator).last;
+    return _cameraPhoto.hasMatch(name) ||
+        _cameraVideo.hasMatch(name) ||
+        _watermarkedPhoto.hasMatch(name);
+  }
 
   /// Returns how many files were deleted. Never throws.
   Future<int> sweep() async {
@@ -30,9 +43,7 @@ class TempMediaCleanup {
       final cutoff = _clock().subtract(minAge);
       var deleted = 0;
       await for (final entity in directory.list(followLinks: false)) {
-        if (entity is! File) continue;
-        final name = entity.path.toLowerCase();
-        if (!_extensions.any(name.endsWith)) continue;
+        if (entity is! File || !_isManagedCapture(entity.path)) continue;
         try {
           final stat = await entity.stat();
           if (stat.modified.isAfter(cutoff)) continue;
