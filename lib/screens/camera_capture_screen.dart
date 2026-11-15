@@ -184,7 +184,8 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
     final controller = _controller;
     if (controller == null ||
         !controller.value.isInitialized ||
-        _saving) {
+        _saving ||
+        (_startingRecording && !_recording)) {
       return;
     }
 
@@ -192,8 +193,9 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
       // Snapshot the position at the moment recording starts. acquire()
       // returns a fresh live fix immediately, or waits briefly in the
       // background while the clip is being recorded.
-      final fixFuture = _locationTracker.acquire();
       _startingRecording = true;
+      if (mounted) setState(() {});
+      final fixFuture = _locationTracker.acquire();
       try {
         await controller.startVideoRecording();
         _recordingStartedAt = DateTime.now();
@@ -210,6 +212,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
         _showMessage(_cameraErrorMessage(exception));
       } finally {
         _startingRecording = false;
+        if (mounted) setState(() {});
         if (_appPaused && !_recording && identical(_controller, controller)) {
           _controller = null;
           await controller.dispose();
@@ -379,7 +382,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
         actions: [
           IconButton(
             tooltip: 'Ganti mode foto/video',
-            onPressed: _saving || _recording
+            onPressed: _saving || _recording || _startingRecording
                 ? null
                 : () => setState(() => _videoMode = !_videoMode),
             icon: Icon(_videoMode
@@ -459,6 +462,14 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  if (_startingRecording)
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 12),
+                      child: Text(
+                        'Memulai rekaman...',
+                        style: TextStyle(color: Colors.white70, fontSize: 12),
+                      ),
+                    ),
                   if (_saving)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 12),
@@ -474,7 +485,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
                 children: [
                   const SizedBox(width: 54),
                   GestureDetector(
-                    onTap: _saving ? null : _capture,
+                    onTap: _saving || _startingRecording ? null : _capture,
                     child: Container(
                       width: 76,
                       height: 76,
@@ -484,7 +495,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
                         color: _recording ? Colors.red : Colors.transparent,
                       ),
                       child: Center(
-                        child: _saving
+                        child: _saving || _startingRecording
                             ? const SizedBox(
                                 width: 28,
                                 height: 28,
@@ -503,7 +514,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
                   ),
                   IconButton(
                     tooltip: _videoMode ? 'Mode video' : 'Mode foto',
-                    onPressed: _saving || _recording
+                    onPressed: _saving || _recording || _startingRecording
                         ? null
                         : () => setState(() => _videoMode = !_videoMode),
                     icon: Icon(
