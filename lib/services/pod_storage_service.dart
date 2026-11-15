@@ -212,10 +212,13 @@ class PodStorageService {
     switch (await FileSystemEntity.type(path)) {
       case FileSystemEntityType.file:
         await File(path).delete();
+        return;
       case FileSystemEntityType.directory:
         await Directory(path).delete();
+        return;
       case FileSystemEntityType.link:
         await Link(path).delete();
+        return;
       case FileSystemEntityType.notFound:
         return;
       case FileSystemEntityType.other:
