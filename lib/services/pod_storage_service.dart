@@ -243,6 +243,10 @@ class PodStorageService {
   Future<void> deleteRecord(PodMediaRecord record) {
     return _serializeWrite(() async {
       final preferences = await SharedPreferences.getInstance();
+      // Preserve the exact serialized entries so a failed media deletion can
+      // restore fields written by newer/older app versions without data loss.
+      final previousValues =
+          preferences.getStringList(_recordsKey) ?? const <String>[];
       final records = await getRecords();
       final remaining = records
           .where((item) => item.path != record.path)
@@ -286,7 +290,7 @@ class PodStorageService {
         try {
           restored = await preferences.setStringList(
             _recordsKey,
-            records.map((item) => jsonEncode(item.toJson())).toList(),
+            previousValues,
           );
         } catch (restoreError) {
           // Keep the evidence even if the index itself cannot be restored.

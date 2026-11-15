@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -156,6 +157,20 @@ void main() {
       createdAt: createdAt,
     );
 
+    // Simulate a record written by a newer app version. The current model
+    // does not know this field, so rollback must restore the raw JSON exactly.
+    final preferences = await SharedPreferences.getInstance();
+    final previousValues = <String>[
+      jsonEncode(<String, dynamic>{
+        ...record.toJson(),
+        'futureField': <String, dynamic>{'preserve': true},
+      }),
+    ];
+    await preferences.setStringList(
+      'termul_pod_media_records_v1',
+      previousValues,
+    );
+
     // A non-empty directory at the media path forces the final delete to fail
     // after the reversible quarantine rename has succeeded.
     await File(record.path).delete();
@@ -172,6 +187,11 @@ void main() {
     final restoredRecords = await storage.getRecords();
     expect(restoredRecords, hasLength(1));
     expect(restoredRecords.single.path, record.path);
+    expect(
+      preferences.getStringList('termul_pod_media_records_v1'),
+      previousValues,
+      reason: 'Rollback must preserve unknown JSON fields byte-for-byte.',
+    );
     expect(await evidenceDirectory.exists(), isTrue);
     expect(await evidenceFile.readAsBytes(), [4, 5, 6]);
   });
