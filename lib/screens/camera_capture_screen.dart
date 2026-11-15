@@ -31,6 +31,9 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
   double _processingProgress = 0;
   bool _videoMode = false;
   DateTime? _recordingStartedAt;
+  final Stopwatch _recordingStopwatch = Stopwatch();
+  Timer? _recordingTimer;
+  Duration _recordingElapsed = Duration.zero;
   String? _error;
   final PodLocationTracker _locationTracker = PodLocationTracker();
   final CachedAddressResolver _addressResolver = CachedAddressResolver();
@@ -170,6 +173,36 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
     }
   }
 
+  void _startRecordingTimer() {
+    _recordingTimer?.cancel();
+    _recordingStopwatch
+      ..reset()
+      ..start();
+    _recordingElapsed = Duration.zero;
+    _recordingTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() => _recordingElapsed = _recordingStopwatch.elapsed);
+    });
+  }
+
+  void _stopRecordingTimer() {
+    _recordingTimer?.cancel();
+    _recordingTimer = null;
+    _recordingStopwatch.stop();
+    _recordingElapsed = _recordingStopwatch.elapsed;
+  }
+
+  String _formatRecordingDuration(Duration duration) {
+    final hours = duration.inHours;
+    final minutes = duration.inMinutes.remainder(60);
+    final seconds = duration.inSeconds.remainder(60);
+    final mm = minutes.toString().padLeft(2, '0');
+    final ss = seconds.toString().padLeft(2, '0');
+    return hours > 0
+        ? '${hours.toString().padLeft(2, '0')}:$mm:$ss'
+        : '$mm:$ss';
+  }
+
   Future<String?> _addressFor(PodLocationFix? fix) async {
     if (fix == null) return null;
     return _addressResolver.resolve(
@@ -199,6 +232,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
       try {
         await controller.startVideoRecording();
         _recordingStartedAt = DateTime.now();
+        _startRecordingTimer();
         _recordingFix = fixFuture;
         _recordingAddress = fixFuture.then(_addressFor);
         if (mounted) { setState(() => _recording = true); }
@@ -233,12 +267,14 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
       final XFile media;
       if (_videoMode) {
         if (!controller.value.isRecordingVideo) {
+          _stopRecordingTimer();
           if (mounted) { setState(() => _recording = false); }
           return;
         }
         fixFuture = _recordingFix ?? _locationTracker.acquire();
         addressFuture = _recordingAddress ?? fixFuture.then(_addressFor);
         media = await controller.stopVideoRecording();
+        _stopRecordingTimer();
         _recordingStartedAt = null;
         _recordingFix = null;
         _recordingAddress = null;
@@ -334,11 +370,14 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
       if (!mounted) { return; }
       Navigator.of(context).pop<PodMediaRecord>(record);
     } catch (exception) {
-      if (_videoMode && mounted && !controller.value.isRecordingVideo) {
-        setState(() {
-          _recording = false;
-          _recordingStartedAt = null;
-        });
+      if (_videoMode && !controller.value.isRecordingVideo) {
+        _stopRecordingTimer();
+        if (mounted) {
+          setState(() {
+            _recording = false;
+            _recordingStartedAt = null;
+          });
+        }
       }
       _showMessage('Gagal menyimpan dokumentasi: $exception');
     } finally {
@@ -363,6 +402,8 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _recordingTimer?.cancel();
+    _recordingStopwatch.stop();
     _locationTracker.dispose();
     final controller = _controller;
     _controller = null;
@@ -424,6 +465,56 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
                                 fit: StackFit.expand,
                                 children: [
                                   CameraPreview(controller),
+                                  if (_recording)
+                                    Positioned(
+                                      top: 16,
+                                      right: 16,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 8,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.black.withValues(alpha: 0.78),
+                                          borderRadius: BorderRadius.circular(20),
+                                          border: Border.all(
+                                            color: Colors.redAccent,
+                                            width: 1.2,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Container(
+                                              width: 8,
+                                              height: 8,
+                                              decoration: const BoxDecoration(
+                                                color: Colors.redAccent,
+                                                shape: BoxShape.circle,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            const Text(
+                                              'REC',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w800,
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              _formatRecordingDuration(_recordingElapsed),
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w700,
+                                                fontFeatures: [FontFeature.tabularFigures()],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
                                   Positioned(
                                     left: 16,
                                     right: 16,
