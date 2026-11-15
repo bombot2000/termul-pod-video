@@ -38,6 +38,41 @@ void main() {
     expect((await storage.getRecords()).single.path, record.path);
   });
 
+  test('concurrent captures keep both files and history records', () async {
+    final secondSource = File('${root.path}/second_camera_source.jpg');
+    await secondSource.writeAsBytes([1, 3, 5, 7]);
+
+    final saved = await Future.wait([
+      storage.saveMedia(
+        sourcePath: source.path,
+        type: 'photo',
+        createdAt: createdAt,
+        moveSource: true,
+      ),
+      storage.saveMedia(
+        sourcePath: secondSource.path,
+        type: 'photo',
+        createdAt: createdAt,
+        moveSource: true,
+      ),
+    ]);
+
+    final records = await storage.getRecords();
+    expect(records, hasLength(2));
+    expect(saved.map((record) => record.path).toSet(), hasLength(2));
+    expect(
+      (await Future.wait(saved.map((record) => File(record.path).readAsBytes())))
+          .map((bytes) => bytes.toList())
+          .toSet(),
+      {
+        [9, 8, 7, 6],
+        [1, 3, 5, 7],
+      },
+    );
+    expect(await source.exists(), isFalse);
+    expect(await secondSource.exists(), isFalse);
+  });
+
   test('the default still copies and keeps the source', () async {
     final record = await storage.saveMedia(
       sourcePath: source.path,
