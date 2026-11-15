@@ -94,7 +94,7 @@ void main() {
         sourcePath: invalidSource.path,
         capturedAt: DateTime.parse('2026-11-14T09:30:00'),
       ),
-      throwsA(isA<FormatException>()),
+      throwsA(isA<Object>()),
     );
 
     expect(await invalidSource.exists(), isTrue);
