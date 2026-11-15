@@ -240,10 +240,18 @@ class PodStorageService {
           '${record.path}.deleting-${DateTime.now().microsecondsSinceEpoch}';
       final moved = await _renameEntity(record.path, quarantinePath);
 
-      final saved = await preferences.setStringList(
-        _recordsKey,
-        remaining.map((item) => jsonEncode(item.toJson())).toList(),
-      );
+      bool saved;
+      try {
+        saved = await preferences.setStringList(
+          _recordsKey,
+          remaining.map((item) => jsonEncode(item.toJson())).toList(),
+        );
+      } catch (_) {
+        if (moved != null) {
+          await _renameEntity(quarantinePath, record.path);
+        }
+        rethrow;
+      }
       if (!saved) {
         if (moved != null) {
           await _renameEntity(quarantinePath, record.path);
@@ -260,14 +268,25 @@ class PodStorageService {
         // If the media cannot be deleted, restore both its original path and
         // history entry so the user does not lose access to the evidence.
         await _renameEntity(quarantinePath, record.path);
-        final restored = await preferences.setStringList(
-          _recordsKey,
-          records.map((item) => jsonEncode(item.toJson())).toList(),
-        );
-        if (!restored) {
+        bool restored;
+        try {
+          restored = await preferences.setStringList(
+            _recordsKey,
+            records.map((item) => jsonEncode(item.toJson())).toList(),
+          );
+        } catch (restoreError) {
+          // Keep the evidence even if the index itself cannot be restored.
+          await _renameEntity(record.path, quarantinePath);
           throw FileSystemException(
-            'File gagal dihapus dan riwayat gagal dipulihkan. Periksa file: $record.path ($error)',
-            record.path,
+            'File gagal dihapus dan riwayat gagal dipulihkan: $restoreError. Bukti disimpan di $quarantinePath',
+            quarantinePath,
+          );
+        }
+        if (!restored) {
+          await _renameEntity(record.path, quarantinePath);
+          throw FileSystemException(
+            'File gagal dihapus dan riwayat gagal dipulihkan. Bukti disimpan di $quarantinePath ($error)',
+            quarantinePath,
           );
         }
         rethrow;
