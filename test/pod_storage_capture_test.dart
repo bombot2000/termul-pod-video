@@ -110,6 +110,30 @@ void main() {
     expect(restored.gallerySaved, isTrue);
   });
 
+  test('delete failure restores the history entry and keeps the evidence', () async {
+    final record = await storage.saveMedia(
+      sourcePath: source.path,
+      type: 'photo',
+      createdAt: createdAt,
+    );
+    final failingStorage = PodStorageService(
+      documentsDirectoryProvider: () async => root,
+      mediaFileDelete: (file) async {
+        throw FileSystemException('Simulated media deletion failure', file.path);
+      },
+    );
+
+    await expectLater(
+      failingStorage.deleteRecord(record),
+      throwsA(isA<FileSystemException>()),
+    );
+
+    final records = await storage.getRecords();
+    expect(records, hasLength(1));
+    expect(records.single.path, record.path);
+    expect(await File(record.path).exists(), isTrue);
+  });
+
   test('copyWith changes only the gallery flag', () {
     final original = PodMediaRecord(
       path: '/private/pod_media/a.jpg',

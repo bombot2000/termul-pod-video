@@ -8,14 +8,25 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/pod_media_record.dart';
 
 typedef DocumentsDirectoryProvider = Future<Directory> Function();
+typedef MediaFileDelete = Future<void> Function(File file);
 
 class PodStorageService {
-  PodStorageService({DocumentsDirectoryProvider? documentsDirectoryProvider})
-      : _documentsDirectoryProvider =
-            documentsDirectoryProvider ?? getApplicationDocumentsDirectory;
+  PodStorageService({
+    DocumentsDirectoryProvider? documentsDirectoryProvider,
+    MediaFileDelete? mediaFileDelete,
+  })  : _documentsDirectoryProvider =
+            documentsDirectoryProvider ?? getApplicationDocumentsDirectory,
+        _mediaFileDelete = mediaFileDelete ?? _deleteIfExists;
 
   static const _recordsKey = 'termul_pod_media_records_v1';
   final DocumentsDirectoryProvider _documentsDirectoryProvider;
+  final MediaFileDelete _mediaFileDelete;
+
+  static Future<void> _deleteIfExists(File file) async {
+    if (await file.exists()) {
+      await file.delete();
+    }
+  }
 
   // Serialize every read-modify-write transaction. SharedPreferences does not
   // provide an atomic append, so concurrent captures/gallery updates/deletes
@@ -193,6 +204,10 @@ class PodStorageService {
   Future<void> deleteRecord(PodMediaRecord record) {
     return _serializeWrite(() async {
       final preferences = await SharedPreferences.getInstance();
+      // Keep the exact previous serialized list so a filesystem failure can
+      // restore the history entry without dropping older/unknown JSON fields.
+      final previousValues =
+          preferences.getStringList(_recordsKey) ?? const <String>[];
       final records = await getRecords();
       records.removeWhere((item) => item.path == record.path);
       final saved = await preferences.setStringList(
@@ -205,9 +220,24 @@ class PodStorageService {
         );
       }
 
-      final file = File(record.path);
-      if (await file.exists()) {
-        await file.delete();
+      try {
+        await _mediaFileDelete(File(record.path));
+      } catch (error, stackTrace) {
+        // Do not leave evidence hidden from history when deleting its file
+        // fails. Restore the original serialized entries before propagating
+        // the filesystem error to the UI.
+        final restored = await preferences.setStringList(
+          _recordsKey,
+          previousValues,
+        );
+        if (!restored) {
+          throw FileSystemException(
+            'File gagal dihapus dan riwayat gagal dipulihkan. '
+            'File bukti tetap dipertahankan di penyimpanan.',
+            record.path,
+          );
+        }
+        Error.throwWithStackTrace(error, stackTrace);
       }
     });
   }
