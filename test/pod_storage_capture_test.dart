@@ -38,6 +38,44 @@ void main() {
     expect((await storage.getRecords()).single.path, record.path);
   });
 
+  test('concurrent captures keep both files and history records', () async {
+    final secondSource = File('${root.path}/second_camera_source.jpg');
+    await secondSource.writeAsBytes([1, 3, 5, 7]);
+
+    // Different service instances are used by separate screens/routes.
+    // Their writes must still share the same in-process serialization queue.
+    final otherStorage = PodStorageService(
+      documentsDirectoryProvider: () async => root,
+    );
+    final saved = await Future.wait([
+      storage.saveMedia(
+        sourcePath: source.path,
+        type: 'photo',
+        createdAt: createdAt,
+        moveSource: true,
+      ),
+      otherStorage.saveMedia(
+        sourcePath: secondSource.path,
+        type: 'photo',
+        createdAt: createdAt,
+        moveSource: true,
+      ),
+    ]);
+
+    final records = await storage.getRecords();
+    expect(records, hasLength(2));
+    expect(saved.map((record) => record.path).toSet(), hasLength(2));
+    final contents = await Future.wait(
+      saved.map((record) async {
+        final bytes = await File(record.path).readAsBytes();
+        return bytes.join(',');
+      }),
+    );
+    expect(contents.toSet(), {'9,8,7,6', '1,3,5,7'});
+    expect(await source.exists(), isFalse);
+    expect(await secondSource.exists(), isFalse);
+  });
+
   test('the default still copies and keeps the source', () async {
     final record = await storage.saveMedia(
       sourcePath: source.path,

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -15,6 +16,23 @@ class PodStorageService {
 
   static const _recordsKey = 'termul_pod_media_records_v1';
   final DocumentsDirectoryProvider _documentsDirectoryProvider;
+
+  // Serialize every read-modify-write transaction. SharedPreferences does not
+  // provide an atomic append, so concurrent captures/gallery updates/deletes
+  // could otherwise overwrite one another's record list.
+  static Future<void> _writeQueue = Future<void>.value();
+
+  Future<T> _serializeWrite<T>(Future<T> Function() action) async {
+    final previous = _writeQueue;
+    final gate = Completer<void>();
+    _writeQueue = gate.future;
+    await previous;
+    try {
+      return await action();
+    } finally {
+      gate.complete();
+    }
+  }
 
   Future<List<PodMediaRecord>> getRecords() async {
     final preferences = await SharedPreferences.getInstance();
@@ -50,139 +68,147 @@ class PodStorageService {
     int? locationAgeSeconds,
     int? locationClockOffsetSeconds,
     bool moveSource = false,
-  }) async {
-    final source = File(sourcePath);
-    if (!await source.exists()) {
-      throw const FileSystemException('File kamera tidak ditemukan.');
-    }
+  }) {
+    return _serializeWrite(() async {
+      final source = File(sourcePath);
+      if (!await source.exists()) {
+        throw const FileSystemException('File kamera tidak ditemukan.');
+      }
 
-    final root = await _documentsDirectoryProvider();
-    final folder = Directory(
-      '${root.path}${Platform.pathSeparator}pod_media',
-    );
-    await folder.create(recursive: true);
-
-    final extension = type == 'video' ? 'mp4' : 'jpg';
-    final stamp = createdAt.toUtc().toIso8601String().replaceAll(':', '-');
-    final baseName = 'pod_$stamp';
-    var destination = File(
-      '${folder.path}${Platform.pathSeparator}$baseName.$extension',
-    );
-    var suffix = 1;
-    while (await destination.exists()) {
-      destination = File(
-        '${folder.path}${Platform.pathSeparator}'
-        '${baseName}_$suffix.$extension',
+      final root = await _documentsDirectoryProvider();
+      final folder = Directory(
+        '${root.path}${Platform.pathSeparator}pod_media',
       );
-      suffix++;
-    }
+      await folder.create(recursive: true);
 
-    // With [moveSource] the capture is renamed into place instead of being
-    // copied, so no duplicate is left behind in the cache directory.
-    var moved = false;
-    if (moveSource) {
-      try {
-        await source.rename(destination.path);
-        moved = true;
-      } on FileSystemException {
-        // Different filesystem: fall back to copy and delete after indexing.
+      final extension = type == 'video' ? 'mp4' : 'jpg';
+      final stamp = createdAt.toUtc().toIso8601String().replaceAll(':', '-');
+      final baseName = 'pod_$stamp';
+      var destination = File(
+        '${folder.path}${Platform.pathSeparator}$baseName.$extension',
+      );
+      var suffix = 1;
+      while (await destination.exists()) {
+        destination = File(
+          '${folder.path}${Platform.pathSeparator}'
+          '${baseName}_$suffix.$extension',
+        );
+        suffix++;
+      }
+
+      // With [moveSource] the capture is renamed into place instead of being
+      // copied, so no duplicate is left behind in the cache directory.
+      var moved = false;
+      if (moveSource) {
+        try {
+          await source.rename(destination.path);
+          moved = true;
+        } on FileSystemException {
+          // Different filesystem: fall back to copy and delete after indexing.
+          await source.copy(destination.path);
+        }
+      } else {
         await source.copy(destination.path);
       }
-    } else {
-      await source.copy(destination.path);
-    }
-    final record = PodMediaRecord(
-      path: destination.path,
-      type: type,
-      createdAt: createdAt,
-      latitude: latitude,
-      longitude: longitude,
-      accuracy: accuracy,
-      address: address,
-      watermarkApplied: watermarkApplied,
-      locationMocked: locationMocked,
-      locationAgeSeconds: locationAgeSeconds,
-      locationClockOffsetSeconds: locationClockOffsetSeconds,
-    );
+      final record = PodMediaRecord(
+        path: destination.path,
+        type: type,
+        createdAt: createdAt,
+        latitude: latitude,
+        longitude: longitude,
+        accuracy: accuracy,
+        address: address,
+        watermarkApplied: watermarkApplied,
+        locationMocked: locationMocked,
+        locationAgeSeconds: locationAgeSeconds,
+        locationClockOffsetSeconds: locationClockOffsetSeconds,
+      );
 
-    try {
+      try {
+        final preferences = await SharedPreferences.getInstance();
+        final records = await getRecords();
+        records.insert(0, record);
+        final saved = await preferences.setStringList(
+          _recordsKey,
+          records.map((item) => jsonEncode(item.toJson())).toList(),
+        );
+        if (!saved) {
+          throw const FileSystemException(
+            'Indeks dokumentasi tidak berhasil disimpan.',
+          );
+        }
+      } catch (_) {
+        if (moved) {
+          // Put the capture back: it was the only copy, so never delete it.
+          try {
+            await destination.rename(source.path);
+          } on FileSystemException {
+            // Keep it in pod_media rather than lose the evidence.
+          }
+        } else if (await destination.exists()) {
+          // Do not leave an unindexed media file after a metadata write failure.
+          await destination.delete();
+        }
+        rethrow;
+      }
+
+      if (moveSource && !moved && await source.exists()) {
+        try {
+          await source.delete();
+        } on FileSystemException {
+          // Best effort; the indexed copy is safe.
+        }
+      }
+
+      return record;
+    });
+  }
+
+  Future<PodMediaRecord> updateGalleryStatus(
+    PodMediaRecord record,
+    bool saved,
+  ) {
+    return _serializeWrite(() async {
       final preferences = await SharedPreferences.getInstance();
       final records = await getRecords();
-      records.insert(0, record);
+      final index = records.indexWhere((item) => item.path == record.path);
+      if (index < 0) {
+        throw const FileSystemException(
+          'Dokumentasi tidak ditemukan di riwayat.',
+        );
+      }
+      final updated = record.copyWith(gallerySaved: saved);
+      records[index] = updated;
+      final persisted = await preferences.setStringList(
+        _recordsKey,
+        records.map((item) => jsonEncode(item.toJson())).toList(),
+      );
+      if (!persisted) {
+        throw const FileSystemException('Status Galeri gagal disimpan.');
+      }
+      return updated;
+    });
+  }
+
+  Future<void> deleteRecord(PodMediaRecord record) {
+    return _serializeWrite(() async {
+      final preferences = await SharedPreferences.getInstance();
+      final records = await getRecords();
+      records.removeWhere((item) => item.path == record.path);
       final saved = await preferences.setStringList(
         _recordsKey,
         records.map((item) => jsonEncode(item.toJson())).toList(),
       );
       if (!saved) {
         throw const FileSystemException(
-          'Indeks dokumentasi tidak berhasil disimpan.',
+          'Riwayat tidak berhasil diperbarui. File tidak dihapus.',
         );
       }
-    } catch (_) {
-      if (moved) {
-        // Put the capture back: it was the only copy, so never delete it.
-        try {
-          await destination.rename(source.path);
-        } on FileSystemException {
-          // Keep it in pod_media rather than lose the evidence.
-        }
-      } else if (await destination.exists()) {
-        // Do not leave an unindexed media file after a metadata write failure.
-        await destination.delete();
+
+      final file = File(record.path);
+      if (await file.exists()) {
+        await file.delete();
       }
-      rethrow;
-    }
-
-    if (moveSource && !moved && await source.exists()) {
-      try {
-        await source.delete();
-      } on FileSystemException {
-        // Best effort; the indexed copy is safe.
-      }
-    }
-
-    return record;
-  }
-
-  Future<PodMediaRecord> updateGalleryStatus(
-    PodMediaRecord record,
-    bool saved,
-  ) async {
-    final preferences = await SharedPreferences.getInstance();
-    final records = await getRecords();
-    final index = records.indexWhere((item) => item.path == record.path);
-    if (index < 0) {
-      throw const FileSystemException('Dokumentasi tidak ditemukan di riwayat.');
-    }
-    final updated = record.copyWith(gallerySaved: saved);
-    records[index] = updated;
-    final persisted = await preferences.setStringList(
-      _recordsKey,
-      records.map((item) => jsonEncode(item.toJson())).toList(),
-    );
-    if (!persisted) {
-      throw const FileSystemException('Status Galeri gagal disimpan.');
-    }
-    return updated;
-  }
-
-  Future<void> deleteRecord(PodMediaRecord record) async {
-    final preferences = await SharedPreferences.getInstance();
-    final records = await getRecords();
-    records.removeWhere((item) => item.path == record.path);
-    final saved = await preferences.setStringList(
-      _recordsKey,
-      records.map((item) => jsonEncode(item.toJson())).toList(),
-    );
-    if (!saved) {
-      throw const FileSystemException(
-        'Riwayat tidak berhasil diperbarui. File tidak dihapus.',
-      );
-    }
-
-    final file = File(record.path);
-    if (await file.exists()) {
-      await file.delete();
-    }
+    });
   }
 }
